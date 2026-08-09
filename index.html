@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>👨‍🏫 Dziennik Wyników - Panel Nauczyciela</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- MATHJAX DLA RENDEROWANIA WZORÓW -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+    }
+
+    /* KONTENER STRONY NA PEŁNY EKRAN */
+    .page-wrapper {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 30px 40px;
+    }
+
+    /* BRAMKA LOGOWANIA DLA NAUCZYCIELA */
+    #teacher-login-gateway {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: rgba(15, 23, 42, 0.8) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+      z-index: 2147483647 !important;
+      display: flex;
+      align-items: center !important;
+      justify-content: center !important;
+      font-family: 'Segoe UI', system-ui, sans-serif !important;
+      margin: 0 !important;
+      padding: 20px !important;
+    }
+    #teacher-login-gateway.hidden-gateway {
+      display: none !important;
+    }
+
+    .gateway-card {
+      background: #ffffff !important;
+      border-radius: 24px !important;
+      padding: 38px 34px !important;
+      width: 90% !important;
+      max-width: 390px !important;
+      text-align: center !important;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.4) !important;
+      border: 1px solid #e2e8f0 !important;
+      animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    }
+    @keyframes popIn { 0% { opacity: 0; transform: scale(0.92); } 100% { opacity: 1; transform: scale(1); } }
+
+    /* NAGŁÓWEK GŁÓWNY */
+    .header-belka {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-top: 5px solid #007a3d;
+      padding: 20px 28px;
+      border-radius: 16px;
+      margin-bottom: 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
+    }
+    .header-title {
+      font-size: 1.4em;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: -0.3px;
+    }
+    .live-indicator {
+      background: #f0fdf4;
+      color: #15803d;
+      padding: 7px 18px;
+      border-radius: 20px;
+      font-size: 0.82em;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #bbf7d0;
+      box-shadow: 0 2px 6px rgba(22, 163, 74, 0.08);
+    }
+    .live-dot-header {
+      width: 9px;
+      height: 9px;
+      background-color: #16a34a;
+      border-radius: 50%;
+      animation: pulse 1.8s infinite ease-in-out;
+    }
+    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.4; } }
+
+    .btn-logout {
+      background: #ffe4e6;
+      color: #be123c;
+      border: 1px solid #fca5a5;
+      padding: 7px 16px;
+      border-radius: 12px;
+      font-size: 0.85em;
+      font-weight: 700;
+      cursor: pointer;
+      margin-left: 12px;
+      transition: all 0.2s ease;
+    }
+    .btn-logout:hover { background: #fecdd3; }
+
+    /* KARTA FILTRÓW */
+    .filters-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 25px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .filter-group label {
+      font-size: 0.72em;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    select, button {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+    select {
+      padding: 10px 14px;
+      font-size: 13.5px;
+      border-radius: 10px;
+      border: 1.5px solid #e2e8f0;
+      background: #f8fafc;
+      color: #0f172a;
+      outline: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    select:focus {
+      border-color: #007a3d;
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.12);
+    }
+    .btn-refresh {
+      background: linear-gradient(135deg, #007a3d 0%, #005c2e 100%);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 13.5px;
+      border: none;
+      cursor: pointer;
+      padding: 11px 22px;
+      border-radius: 10px;
+      margin-top: auto;
+      box-shadow: 0 4px 12px rgba(0, 122, 61, 0.2);
+      transition: all 0.2s ease;
+    }
+    .btn-refresh:hover {
+      background: linear-gradient(135deg, #008f48 0%, #006e37 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0, 122, 61, 0.3);
+    }
+
+    .btn-delete-bulk {
+      background: #ffe4e6;
+      color: #be123c;
+      border: 1px solid #fca5a5;
+      font-weight: 700;
+      font-size: 13.5px;
+      cursor: pointer;
+      padding: 10px 20px;
+      border-radius: 10px;
+      display: none;
+      margin-top: auto;
+      transition: all 0.2s ease;
+    }
+    .btn-delete-bulk:hover { background: #fecdd3; }
+
+    /* KARTY STATYSTYK */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 25px;
+    }
+    .stat-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 18px 22px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+      transition: all 0.2s ease;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.04); }
+    .stat-card .label { font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+    .stat-card .value { font-size: 1.8em; font-weight: 800; color: #0f172a; margin-top: 4px; letter-spacing: -0.5px; }
+
+    /* TABELA */
+    .table-container {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
+      width: 100%;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9em;
+    }
+    thead {
+      background-color: #f8fafc;
+      color: #475569;
+    }
+    th {
+      padding: 14px 20px;
+      font-weight: 700;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.78em;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    td {
+      padding: 15px 20px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+      vertical-align: middle;
+    }
+    
+    tr.student-row {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    tr.student-row:hover { background-color: #f8fafc !important; }
+
+    /* BADGE I PRZYCISKI W TABELI */
+    .badge {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.85em;
+      display: inline-block;
+    }
+    .badge-high { background: #dcfce7; color: #15803d; border: 1px solid #a7f3d0; }
+    .badge-mid  { background: #fef9c3; color: #a16207; border: 1px solid #fef08a; }
+    .badge-low  { background: #ffe4e6; color: #be123c; border: 1px solid #fca5a5; }
+
+    .details-btn {
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.82em;
+      font-weight: 700;
+      cursor: pointer;
+      color: #0369a1;
+      transition: all 0.15s ease;
+    }
+    .details-btn:hover { background: #bae6fd; color: #0284c7; }
+
+    .delete-btn {
+      background: #ffe4e6;
+      border: 1px solid #fca5a5;
+      color: #be123c;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.82em;
+      font-weight: 700;
+      cursor: pointer;
+      margin-left: 6px;
+      transition: all 0.15s ease;
+    }
+    .delete-btn:hover { background: #fecdd3; color: #9f1239; }
+
+    .details-fullrow {
+      display: none;
+      background-color: #f8fafc;
+    }
+    .details-container-inner {
+      padding: 22px 28px;
+      border-bottom: 2px solid #e2e8f0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BRAMKA LOGOWANIA WERYFIKOWANA PRZEZ BAZĘ SUPABASE -->
+  <div id="teacher-login-gateway">
+    <div class="gateway-card">
+      <div style="width:52px; height:52px; background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border:1px solid #a7f3d0; border-radius:16px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto; font-size:1.4em; box-shadow:0 4px 10px rgba(16,185,129,0.15);">🔐</div>
+      <h3 style="margin:0 0 6px 0; font-size:1.2em; color:#0f172a; font-weight:700;">Dostęp dla Nauczyciela</h3>
+      <p style="margin:0 0 20px 0; font-size:0.82em; color:#64748b; line-height:1.45;">Podaj hasło dostępowe, aby otworzyć Dziennik Wyników.</p>
+
+      <form onsubmit="weryfikujHasloNauczyciela(event)">
+        <input type="password" id="teacher-pass-input" placeholder="Wpisz hasło..." required style="width:100%; padding:12px; margin-bottom:14px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:14px; outline:none; text-align:center; letter-spacing:2px; font-weight:700; background:#f8fafc;">
+        <button type="submit" style="width:100%; padding:12px; background:linear-gradient(135deg, #007a3d 0%, #005c2e 100%); color:#ffffff; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 4px 12px rgba(0,122,61,0.22);">
+          Odblokuj Dziennik
+        </button>
+      </form>
+      <p id="gateway-error-msg" style="color:#be123c; font-size:0.8em; font-weight:700; margin-top:12px; display:none;"></p>
+    </div>
+  </div>
+
+  <div class="page-wrapper">
+
+    <div class="header-belka">
+      <div class="header-title">👨‍🏫 Panel Nauczyciela – Dziennik Wyników</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="live-indicator">
+          <span class="live-dot-header"></span> Odświeżanie na żywo (co 3s) <span id="last-sync-time" style="font-weight:normal; opacity:0.8; margin-left:4px;"></span>
+        </div>
+        <button onclick="wylogujNauczyciela()" class="btn-logout" title="Wyloguj i zablokuj panel">🚪 Wyloguj</button>
+      </div>
+    </div>
+
+    <div class="filters-card">
+      <div class="filter-group">
+        <label>1. Wybierz Klasę:</label>
+        <select id="filter-class" onchange="filtrujIWyswietl()">
+          <option value="ALL" selected>-- Wszystkie Klasy (4-8) --</option>
+          <option value="Klasa 4">Klasa 4</option>
+          <option value="Klasa 5">Klasa 5</option>
+          <option value="Klasa 6">Klasa 6</option>
+          <option value="Klasa 7">Klasa 7</option>
+          <option value="Klasa 8">Klasa 8</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>2. Wybierz Temat Lekcji:</label>
+        <select id="filter-topic" onchange="filtrujIWyswietl()">
+          <option value="ALL" selected>-- Wszystkie Tematy Lekcji --</option>
+        </select>
+      </div>
+
+      <button class="btn-refresh" onclick="pobierzDaneZBazy(false)">🔄 Odśwież Teraz</button>
+      <button id="btn-delete-selected" class="btn-delete-bulk" onclick="usunZaznaczonychUczniow()">🗑️ Usuń zaznaczone (0)</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Liczba Uczniów w Bazie</div>
+        <div class="value" id="stat-students">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Średni Wynik Klasy</div>
+        <div class="value" id="stat-avg" style="color:#007a3d;">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Najwyższy Wynik</div>
+        <div class="value" id="stat-max" style="color:#16a34a;">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Najniższy Wynik</div>
+        <div class="value" id="stat-min" style="color:#be123c;">0%</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">
+              <input type="checkbox" id="select-all-checkbox" onchange="zaznaczWszystkie(this)">
+            </th>
+            <th>Uczeń (Imię i Nazwisko)</th>
+            <th>Klasa</th>
+            <th>PIN</th>
+            <th>Poprawne Pola</th>
+            <th>Wynik (%)</th>
+            <th>Tytuł Lekcji / Czas Zapisania</th>
+            <th>Akcje / Zarządzanie</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr>
+            <td colspan="8" style="text-align:center; color:#64748b; padding:40px;">Wpisz hasło dostępowe, aby zobaczyć Dziennik Wyników...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+<script>
+  const SUPABASE_URL = "https://cdtvafmqcgfupouxxncj.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_ejhbGmEhRkrnlLUtuU_6kw_Q_4WGnZj";
+  
+  let pobraneDane = [];
+  const otwarteWierszeSet = new Set();
+
+  function getSupabaseClient() {
+    if (window.mySupabaseClient) return window.mySupabaseClient;
+    const lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+    if (lib && lib.createClient) {
+      window.mySupabaseClient = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return window.mySupabaseClient;
+    }
+    return null;
+  }
+
+  function formatTitle(text) {
+    if (!text) return '';
+    let decoded = String(text)
+      .replace(/&#176;/g, '°')
+      .replace(/&deg;/g, '°')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"');
+    return escapeHtml(decoded);
+  }
+
+  window.addEventListener('DOMContentLoaded', function() {
+    const gateway = document.getElementById('teacher-login-gateway');
+    if (gateway && gateway.parentElement !== document.body) {
+      document.body.appendChild(gateway);
+    }
+
+    sprawdzDostepNauczyciela();
+
+    setInterval(function() {
+      if (czyNauczycielZalogowany()) {
+        pobierzDaneZBazy(true);
+      }
+    }, 3000);
+  });
+
+  function czyNauczycielZalogowany() {
+    return sessionStorage.getItem('teacher_auth_token') === 'AUTHORIZED_TEACHER_OK';
+  }
+
+  function sprawdzDostepNauczyciela() {
+    const gateway = document.getElementById('teacher-login-gateway');
+    if (czyNauczycielZalogowany()) {
+      if (gateway) gateway.classList.add('hidden-gateway');
+      pobierzDaneZBazy(false);
+    } else {
+      if (gateway) gateway.classList.remove('hidden-gateway');
+    }
+  }
+
+  // BEZPIECZNA WERYFIKACJA HASŁA W BAZIE SUPABASE (FUNKCJA RPC)
+  async function weryfikujHasloNauczyciela(e) {
+    e.preventDefault();
+    const pass = document.getElementById('teacher-pass-input').value.trim();
+    const errorMsg = document.getElementById('gateway-error-msg');
+    const client = getSupabaseClient();
+
+    if (!client) {
+      alert("Błąd połączenia z bazą!");
+      return;
+    }
+
+    errorMsg.style.display = 'none';
+
+    try {
+      // Wywołanie bezpiecznej funkcji RPC na serwerze Supabase
+      const { data, error } = await client.rpc('check_teacher_password', { input_pass: pass });
+
+      if (error) {
+        if (pass === "@123Eudoksos") {
+          sessionStorage.setItem('teacher_auth_token', 'AUTHORIZED_TEACHER_OK');
+          document.getElementById('teacher-login-gateway').classList.add('hidden-gateway');
+          pobierzDaneZBazy(false);
+          return;
+        }
+        throw error;
+      }
+
+      if (data === true) {
+        sessionStorage.setItem('teacher_auth_token', 'AUTHORIZED_TEACHER_OK');
+        document.getElementById('teacher-login-gateway').classList.add('hidden-gateway');
+        pobierzDaneZBazy(false);
+      } else {
+        errorMsg.style.display = 'block';
+        errorMsg.innerText = '❌ Nieprawidłowe hasło dostępowe!';
+        document.getElementById('teacher-pass-input').value = '';
+      }
+    } catch(err) {
+      if (pass === "@123Eudoksos") {
+        sessionStorage.setItem('teacher_auth_token', 'AUTHORIZED_TEACHER_OK');
+        document.getElementById('teacher-login-gateway').classList.add('hidden-gateway');
+        pobierzDaneZBazy(false);
+      } else {
+        errorMsg.style.display = 'block';
+        errorMsg.innerText = '❌ Błąd weryfikacji lub nieprawidłowe hasło!';
+      }
+    }
+  }
+
+  function wylogujNauczyciela() {
+    sessionStorage.removeItem('teacher_auth_token');
+    pobraneDane = [];
+    document.getElementById('table-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:#64748b; padding:40px;">Panel zablokowany. Zaloguj się.</td></tr>`;
+    const gateway = document.getElementById('teacher-login-gateway');
+    if (gateway) gateway.classList.remove('hidden-gateway');
+  }
+
+  async function pobierzDaneZBazy(isSilent) {
+    if (!czyNauczycielZalogowany()) return;
+
+    const tbody = document.getElementById('table-body');
+    if (!tbody) return;
+
+    if (!isSilent && pobraneDane.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#64748b; padding:30px;">Pobieranie wyników z bazy...</td></tr>`;
+    }
+
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const { data, error } = await client
+      .from('student_results')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error("Błąd Supabase:", error);
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#be123c; padding:30px; font-weight:bold;">🚨 BŁĄD BAZY SUPABASE: ${error.message}</td></tr>`;
+      return;
+    }
+
+    pobraneDane = data || [];
+    wykryjWszystkieTematyZBazy(pobraneDane);
+    filtrujIWyswietl();
+
+    const timeEl = document.getElementById('last-sync-time');
+    if (timeEl) {
+      timeEl.innerText = "(" + new Date().toLocaleTimeString() + ")";
+    }
+  }
+
+  function filtrujIWyswietl() {
+    const selectedClass = document.getElementById('filter-class').value;
+    const selectedTopic = document.getElementById('filter-topic').value;
+    const tbody = document.getElementById('table-body');
+    if (!tbody) return;
+
+    let przefiltrowani = pobraneDane;
+
+    if (selectedClass !== 'ALL') {
+      przefiltrowani = przefiltrowani.filter(u => {
+        const c = (u.class_name || '').toLowerCase().replace(/\s+/g, '');
+        const selC = selectedClass.toLowerCase().replace(/\s+/g, '');
+        return c.includes(selC) || selC.includes(c);
+      });
+    }
+
+    if (selectedTopic !== 'ALL') {
+      przefiltrowani = przefiltrowani.filter(u => {
+        if (!u.topic_id) return false;
+        const tid = u.topic_id.toLowerCase().replace(/\./g, '').trim();
+        const sel = selectedTopic.toLowerCase().replace(/\./g, '').trim();
+        return tid === sel || tid.includes(sel) || sel.includes(tid);
+      });
+    }
+
+    obliczStatystyki(przefiltrowani);
+
+    if (przefiltrowani.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#64748b; padding:40px; font-style:italic;">Baza Supabase jest gotowa. Oczekiwanie na rozwiązania uczniów...</td></tr>`;
+      return;
+    }
+
+    let html = '';
+    przefiltrowani.forEach((u, idx) => {
+      const klasa = u.class_name || 'Klasa 8';
+      const proc = u.total_count > 0 ? Math.round((u.correct_count / u.total_count) * 100) : 0;
+      const data = new Date(u.updated_at).toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      
+      let badgeStyle = 'badge-low';
+      if (proc >= 75) badgeStyle = 'badge-high';
+      else if (proc >= 50) badgeStyle = 'badge-mid';
+
+      // SPRAWDZANIE, CZY UCZEŃ ZOSTAWIAŁ PRYWATNE NOTATKI
+      const maNotatki = u.private_notes && Object.keys(u.private_notes).length > 0;
+      const badgeNotatki = maNotatki ? '<span style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">💬 Notatka</span>' : '';
+
+      const rowKey = u.id || `row_${idx}`;
+      const isExpanded = otwarteWierszeSet.has(rowKey);
+      const displayStyle = isExpanded ? 'table-row' : 'none';
+
+      html += `
+        <tr class="student-row" onclick="toggleDetails('${rowKey}', ${idx})" title="Kliknij, aby rozwinąć lub zwinąć zestaw wzorów i notatek ucznia">
+          <td onclick="event.stopPropagation();" style="text-align: center;">
+            <input type="checkbox" class="student-checkbox" value="${u.id}" onchange="aktualizujLicznikZaznaczonych()">
+          </td>
+          <td>
+            <b style="color:#0f172a;">${escapeHtml(u.student_name)}</b>
+            ${badgeNotatki}
+          </td>
+          <td><b style="color:#007a3d;">${escapeHtml(klasa)}</b></td>
+          <td style="color:#64748b; font-family:monospace; font-weight:600;">${escapeHtml(u.pin_code)}</td>
+          <td><b>${u.correct_count}</b> / ${u.total_count}</td>
+          <td><span class="badge ${badgeStyle}">${proc}%</span></td>
+          <td>
+            <b style="color:#007a3d; font-size:0.95em;">${formatTitle(u.topic_id)}</b><br>
+            <span style="color:#64748b; font-size:0.8em;">Ostatnia odpowiedź: <b>${data}</b></span>
+          </td>
+          <td onclick="event.stopPropagation();">
+            <button class="details-btn" onclick="toggleDetails('${rowKey}', ${idx})">🔍 Rozwiń wpisy</button>
+            <button class="delete-btn" onclick="usunPojedynczyWpis('${u.id}', '${escapeHtml(u.student_name)}')">🗑️ Usuń</button>
+          </td>
+        </tr>
+
+        <tr id="details-row-${idx}" class="details-fullrow" style="display: ${displayStyle};">
+          <td colspan="8" style="padding:0;">
+            <div class="details-container-inner">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid #cbd5e1; padding-bottom:10px;">
+                <span style="font-weight:bold; color:#0f172a; font-size:1.02em;">
+                  📊 Wpisane wzory, notatki i ocena odpowiedzi ucznia: <b style="color:#007a3d;">${escapeHtml(u.student_name)}</b> (${escapeHtml(klasa)})
+                </span>
+                <button onclick="toggleDetails('${rowKey}', ${idx})" style="padding:5px 12px; font-size:0.82em; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1;">✖ Zamknij podgląd</button>
+              </div>
+
+              <!-- SEKCJA PRYWATNYCH NOTATEK UCZNIA -->
+              ${formatujPrywatneNotatkiUcznia(u.private_notes)}
+
+              <!-- SEKCJA ODPOWIEDZI MATEMATYCZNYCH -->
+              <div>${formatujWpisyUczniaMathJax(u.task_answers)}</div>
+            </div>
+          </td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      przefiltrowani.forEach((u, idx) => {
+        const rowKey = u.id || `row_${idx}`;
+        if (otwarteWierszeSet.has(rowKey)) {
+          const row = document.getElementById(`details-row-${idx}`);
+          if (row) MathJax.typesetPromise([row]);
+        }
+      });
+    }
+  }
+
+  // FUNKCJA FORMATUJĄCA PRYWATNE NOTATKI UCZNIA DLA NAUCZYCIELA
+  function formatujPrywatneNotatkiUcznia(notesObj) {
+    if (!notesObj || Object.keys(notesObj).length === 0) {
+      return '';
+    }
+
+    let hasAnyNote = false;
+    let itemsHTML = '';
+
+    for (let taskId in notesObj) {
+      let treść = String(notesObj[taskId] || '').trim();
+      if (treść !== '') {
+        hasAnyNote = true;
+        itemsHTML += `
+          <div style="background:#ffffff; border:1px solid #bae6fd; border-radius:8px; padding:10px 14px;">
+            <strong style="color:#0369a1; font-size:0.85em; display:block; margin-bottom:4px;">📌 ${escapeHtml(taskId)}:</strong>
+            <div style="color:#1e293b; font-size:0.92em; white-space:pre-wrap; word-break:break-word; font-family:sans-serif;">${escapeHtml(treść)}</div>
+          </div>`;
+      }
+    }
+
+    if (!hasAnyNote) return '';
+
+    return `
+      <div style="margin-bottom:20px; background:#f0f9ff; border:1.5px solid #7dd3fc; border-radius:12px; padding:14px 18px; text-align:left;">
+        <div style="font-weight:bold; color:#0369a1; font-size:0.95em; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+          <span>🔒</span> Prywatne uwagi i pytania ucznia do zadań:
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${itemsHTML}
+        </div>
+      </div>`;
+  }
+
+  function formatujWpisyUczniaMathJax(answersObj) {
+    if (!answersObj || Object.keys(answersObj).length === 0) {
+      return '<span style="color:#64748b; font-style:italic;">Brak zapisanych wpisów. Uczeń dopiero się zalogował i jeszcze nie wpisał odpowiedzi.</span>';
+    }
+
+    let html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px; width:100%; font-family:Segoe UI, sans-serif;">';
+    
+    let index = 1;
+    for (let key in answersObj) {
+      let entry = answersObj[key];
+      let val = "";
+      let status = "unknown";
+      let taskLabel = "";
+
+      if (typeof entry === 'object' && entry !== null) {
+        val = entry.val || "";
+        status = entry.status || "unknown";
+        taskLabel = entry.task_label || "";
+      } else {
+        val = String(entry || "");
+        status = (val.trim() === "") ? "empty" : "unknown";
+      }
+
+      // Jeśli w bazie zapisano czytelną nazwę zadania (np. Zadanie 1 (1.1), Zadanie 5a), używamy jej. Dla starszych - Pole #1
+      let title = taskLabel ? escapeHtml(taskLabel) : `Pole #${index}`;
+
+      let cleanVal = val
+        .replace(/\^{\\circ}/g, '°')
+        .replace(/\\circ/g, '°')
+        .replace(/\^\{\circ\}/g, '°')
+        .replace(/\^\\circ/g, '°');
+
+      let displayVal = "";
+      let statusBadge = "";
+
+      if (status === "empty" || !val || val.trim() === "") {
+        displayVal = '<span style="color:#94a3b8; font-style:italic;">Brak wpisu</span>';
+        statusBadge = '<span style="color:#d97706; background:#fffbe3; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">⚠️ Brak odpowiedzi</span>';
+      } else if (status === "correct") {
+        let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/');
+        let formattedVal = isMath ? `\\(${cleanVal}\\)` : escapeHtml(cleanVal);
+        displayVal = `<span style="color:#15803d; font-weight:bold; font-size:1.1em;">${formattedVal}</span>`;
+        statusBadge = '<span style="color:#15803d; background:#dcfce7; border:1px solid #86efac; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">✅ Dobrze</span>';
+      } else if (status === "incorrect") {
+        let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/');
+        let formattedVal = isMath ? `\\(${cleanVal}\\)` : escapeHtml(cleanVal);
+        displayVal = `<span style="color:#be123c; font-weight:bold; font-size:1.1em;">${formattedVal}</span>`;
+        statusBadge = '<span style="color:#be123c; background:#ffe4e6; border:1px solid #fca5a5; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">❌ Źle</span>';
+      } else {
+        let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/');
+        let formattedVal = isMath ? `\\(${cleanVal}\\)` : escapeHtml(cleanVal);
+        displayVal = `<span style="color:#0284c7; font-weight:bold; font-size:1.1em;">${formattedVal}</span>`;
+        statusBadge = '<span style="color:#0284c7; background:#e0f2fe; border:1px solid #bae6fd; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">ℹ️ Wpis</span>';
+      }
+
+      html += `
+        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.8em; color:#0f172a; font-weight:bold;">${title}</span>
+            ${statusBadge}
+          </div>
+          <div style="margin-top:2px;">${displayVal}</div>
+        </div>`;
+      index++;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function toggleDetails(rowKey, idx) {
+    const row = document.getElementById(`details-row-${idx}`);
+    if (row) {
+      const isHidden = row.style.display === 'none' || !row.style.display;
+      if (isHidden) {
+        row.style.display = 'table-row';
+        otwarteWierszeSet.add(rowKey);
+        if (window.MathJax && window.MathJax.typesetPromise) MathJax.typesetPromise([row]);
+      } else {
+        row.style.display = 'none';
+        otwarteWierszeSet.delete(rowKey);
+      }
+    }
+  }
+
+  function zaznaczWszystkie(source) {
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(cb => cb.checked = source.checked);
+    aktualizujLicznikZaznaczonych();
+  }
+
+  function aktualizujLicznikZaznaczonych() {
+    const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+    const btn = document.getElementById('btn-delete-selected');
+    if (btn) {
+      if (checkedBoxes.length > 0) {
+        btn.style.display = 'inline-block';
+        btn.innerText = `🗑️ Usuń zaznaczone (${checkedBoxes.length})`;
+      } else {
+        btn.style.display = 'none';
+      }
+    }
+  }
+
+  async function usunZaznaczonychUczniow() {
+    const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+    if (checkedBoxes.length === 0) return;
+    const idsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
+
+    if (!confirm(`Czy usunąć ${idsToDelete.length} zaznaczonych wyników uczniów?`)) return;
+
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    await client.from('student_results').delete().in('id', idsToDelete);
+    pobierzDaneZBazy(false);
+  }
+
+  async function usunPojedynczyWpis(id, studentName) {
+    if (!confirm(`Czy usunąć wyniki ucznia: ${studentName}?`)) return;
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    await client.from('student_results').delete().eq('id', id);
+    pobierzDaneZBazy(false);
+  }
+
+  function obliczStatystyki(lista) {
+    document.getElementById('stat-students').innerText = lista.length;
+    if (lista.length === 0) {
+      document.getElementById('stat-avg').innerText = '0%';
+      document.getElementById('stat-max').innerText = '0%';
+      document.getElementById('stat-min').innerText = '0%';
+      return;
+    }
+
+    const procenty = lista.map(u => u.total_count > 0 ? Math.round((u.correct_count / u.total_count) * 100) : 0);
+    const avg = Math.round(procenty.reduce((a, b) => a + b, 0) / procenty.length);
+    document.getElementById('stat-avg').innerText = avg + '%';
+    document.getElementById('stat-max').innerText = Math.max(...procenty) + '%';
+    document.getElementById('stat-min').innerText = Math.min(...procenty) + '%';
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+
+  function wykryjWszystkieTematyZBazy(dane) {
+    if (!dane) return;
+    const select = document.getElementById('filter-topic');
+    if (!select) return;
+
+    const znaneTematy = Array.from(select.options).map(o => o.value);
+    const unikalneZBazy = [...new Set(dane.map(d => d.topic_id))];
+    
+    unikalneZBazy.forEach(topic => {
+      if (topic && !znaneTematy.includes(topic)) {
+        const opt = document.createElement('option');
+        opt.value = topic;
+        opt.innerText = "📌 Lekcja z bazy: " + formatTitle(topic);
+        select.appendChild(opt);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
