@@ -13,7 +13,7 @@
         inlineMath: [['\\(', '\\)']], 
         displayMath: [['\\[', '\\]']],
         macros: {
-          FRAC: ["\\frac{#1}{#2}", 2] /* Zabezpieczenie dla wielkich liter FRAC */
+          FRAC: ["\\frac{#1}{#2}", 2]
         }
       },
       options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
@@ -450,6 +450,23 @@
     return escapeHtml(decoded);
   }
 
+  // BEZPIECZNA FUNKCJA RENDERUJĄCA MATHJAX BEZ BŁĘDÓW PAMIĘCI
+  function renderMathForElement(element) {
+    if (!element || !window.MathJax) return;
+    try {
+      if (window.MathJax.typesetClear) {
+        window.MathJax.typesetClear([element]);
+      }
+      if (window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise([element]).catch(function(err) {
+          console.warn('Błąd renderowania MathJax:', err);
+        });
+      }
+    } catch(e) {
+      console.warn('Wyjątek MathJax:', e);
+    }
+  }
+
   window.addEventListener('DOMContentLoaded', function() {
     const gateway = document.getElementById('teacher-login-gateway');
     if (gateway && gateway.parentElement !== document.body) {
@@ -479,7 +496,6 @@
     }
   }
 
-  // BEZPIECZNA WERYFIKACJA HASŁA W BAZIE SUPABASE (FUNKCJA RPC)
   async function weryfikujHasloNauczyciela(e) {
     e.preventDefault();
     const pass = document.getElementById('teacher-pass-input').value.trim();
@@ -494,7 +510,6 @@
     errorMsg.style.display = 'none';
 
     try {
-      // Wywołanie bezpiecznej funkcji RPC na serwerze Supabase
       const { data, error } = await client.rpc('check_teacher_password', { input_pass: pass });
 
       if (error) {
@@ -560,9 +575,17 @@
       return;
     }
 
+    const nowaTrescData = JSON.stringify(data || []);
+    const staraTrescData = JSON.stringify(pobraneDane);
+
     pobraneDane = data || [];
     wykryjWszystkieTematyZBazy(pobraneDane);
-    filtrujIWyswietl();
+
+    // OCHRONA PRZED NIEPOTRZEBNYM KASOWANIEM WYRENDEROWANYCH WZORÓW CO 3s:
+    // Przeliczamy tabelę tylko, jeśli dane w bazie faktycznie się zmieniły lub nie było to ciche odświeżanie
+    if (!isSilent || nowaTrescData !== staraTrescData) {
+      filtrujIWyswietl();
+    }
 
     const timeEl = document.getElementById('last-sync-time');
     if (timeEl) {
@@ -612,7 +635,6 @@
       if (proc >= 75) badgeStyle = 'badge-high';
       else if (proc >= 50) badgeStyle = 'badge-mid';
 
-      // SPRAWDZANIE, CZY UCZEŃ ZOSTAWIAŁ PRYWATNE NOTATKI
       const maNotatki = u.private_notes && Object.keys(u.private_notes).length > 0;
       const badgeNotatki = maNotatki ? '<span style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">💬 Notatka</span>' : '';
 
@@ -665,22 +687,20 @@
 
     tbody.innerHTML = html;
 
-    if (window.MathJax && window.MathJax.typesetPromise) {
+    // Ponowne wywołanie MathJax dla wszystkich rozwiniętych wierszy
+    setTimeout(function() {
       przefiltrowani.forEach((u, idx) => {
         const rowKey = u.id || `row_${idx}`;
         if (otwarteWierszeSet.has(rowKey)) {
           const row = document.getElementById(`details-row-${idx}`);
-          if (row) MathJax.typesetPromise([row]);
+          if (row) renderMathForElement(row);
         }
       });
-    }
+    }, 60);
   }
 
-  // FUNKCJA FORMATUJĄCA PRYWATNE NOTATKI UCZNIA DLA NAUCZYCIELA
   function formatujPrywatneNotatkiUcznia(notesObj) {
-    if (!notesObj || Object.keys(notesObj).length === 0) {
-      return '';
-    }
+    if (!notesObj || Object.keys(notesObj).length === 0) return '';
 
     let hasAnyNote = false;
     let itemsHTML = '';
@@ -710,6 +730,38 @@
       </div>`;
   }
 
+  // ZAAWANSOWANA PRZETWARZARKA WZORÓW MATEMATYCZNYCH (NAPRAWIA \FRAC, UŁAMKI ORAZ BRAK NAWIASÓW)
+  function naprawKodMatematyczny(val) {
+    if (!val) return '';
+    let str = String(val).trim();
+
+    // 1. Odkodowanie encji HTML
+    str = str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+    // 2. Obsługa symbolu stopni
+    str = str.replace(/\^{\\circ}/g, '°')
+             .replace(/\\circ/g, '°')
+             .replace(/\^\{\circ\}/g, '°')
+             .replace(/\^\\circ/g, '°');
+
+    // 3. Zamiana wielkich liter \FRAC / FRAC na małe \frac
+    str = str.replace(/\\?FRAC/gi, '\\frac');
+
+    // 4. Naprawa braku nawiasów klamrowych w ułamkach np. \frac13 -> \frac{1}{3}
+    str = str.replace(/\\frac\s*(\d+)\s*(\d+)/g, '\\frac{$1}{$2}');
+    str = str.replace(/\\frac\s*\{([^}]+)\}\s*(\d+)/g, '\\frac{$1}{$2}');
+    str = str.replace(/\\frac\s*(\d+)\s*\{([^}]+)\}/g, '\\frac{$1}{$2}');
+
+    // 5. Konwersja zwykłych zapisów z ukośnikiem np. "33 1/3" -> "33 \frac{1}{3}"
+    str = str.replace(/(\d+)\s+(\d+)\/(\d+)/g, '$1 \\frac{$2}{$3}');
+    str = str.replace(/^(\d+)\/(\d+)$/g, '\\frac{$1}{$2}');
+
+    // 6. Formatowanie spacji przed ułamkiem np. 33\frac -> 33 \frac
+    str = str.replace(/(\d)\s*\\frac/g, '$1 \\frac');
+
+    return str;
+  }
+
   function formatujWpisyUczniaMathJax(answersObj) {
     if (!answersObj || Object.keys(answersObj).length === 0) {
       return '<span style="color:#64748b; font-style:italic;">Brak zapisanych wpisów. Uczeń dopiero się zalogował i jeszcze nie wpisał odpowiedzi.</span>';
@@ -733,43 +785,30 @@
         status = (val.trim() === "") ? "empty" : "unknown";
       }
 
-      // Nazwa zadania
       let title = taskLabel ? escapeHtml(taskLabel) : `Pole #${index}`;
 
-      // POPRAWIONA SANITYZACJA KODU MATEMATYCZNEGO DLA MATHJAX (NAPRAWA ZŁYCH UŁAMKÓW I FRAC):
-      let cleanVal = String(val)
-        .replace(/\^{\\circ}/g, '°')
-        .replace(/\\circ/g, '°')
-        .replace(/\^\{\circ\}/g, '°')
-        .replace(/\^\\circ/g, '°')
-        /* Zamiana wielkich liter FRAC / \FRAC na małe \frac */
-        .replace(/\\?FRAC/gi, '\\frac')
-        /* Przekształcanie zapisu \frac13 na poprawny \frac{1}{3} */
-        .replace(/\\frac\s*(\d)(\d)/g, '\\frac{$1}{$2}')
-        /* Przekształcanie zapisu \frac{1}3 na poprawny \frac{1}{3} */
-        .replace(/\\frac\{([^}]+)\}(\d)/g, '\\frac{$1}{$2}')
-        /* Dodawanie spacji między liczbą całą a ułamkiem (np. 33\frac -> 33 \frac) */
-        .replace(/(\d)(\\frac)/g, '$1 $2');
+      // Wywołanie konwertera matematycznego
+      let cleanVal = naprawKodMatematyczny(val);
 
       let displayVal = "";
       let statusBadge = "";
 
-      if (status === "empty" || !val || val.trim() === "") {
+      if (status === "empty" || !val || String(val).trim() === "") {
         displayVal = '<span style="color:#94a3b8; font-style:italic;">Brak wpisu</span>';
         statusBadge = '<span style="color:#d97706; background:#fffbe3; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">⚠️ Brak odpowiedzi</span>';
       } else {
-        // Wykrywanie czy ciąg wymaga wyrenderowania MathJax
-        let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/') || cleanVal.includes('{');
+        // Zawsze pakujemy wyczyszczony wzór w ograniczniki MathJax \( ... \)
+        let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/') || cleanVal.includes('{') || cleanVal.includes('}');
         let formattedVal = isMath ? `\\(${cleanVal}\\)` : escapeHtml(cleanVal);
 
         if (status === "correct") {
-          displayVal = `<span style="color:#15803d; font-weight:bold; font-size:1.1em;">${formattedVal}</span>`;
+          displayVal = `<span style="color:#15803d; font-weight:bold; font-size:1.15em;">${formattedVal}</span>`;
           statusBadge = '<span style="color:#15803d; background:#dcfce7; border:1px solid #86efac; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">✅ Dobrze</span>';
         } else if (status === "incorrect") {
-          displayVal = `<span style="color:#be123c; font-weight:bold; font-size:1.1em;">${formattedVal}</span>`;
+          displayVal = `<span style="color:#be123c; font-weight:bold; font-size:1.15em;">${formattedVal}</span>`;
           statusBadge = '<span style="color:#be123c; background:#ffe4e6; border:1px solid #fca5a5; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">❌ Źle</span>';
         } else {
-          displayVal = `<span style="color:#0284c7; font-weight:bold; font-size:1.1em;">${formattedVal}</span>`;
+          displayVal = `<span style="color:#0284c7; font-weight:bold; font-size:1.15em;">${formattedVal}</span>`;
           statusBadge = '<span style="color:#0284c7; background:#e0f2fe; border:1px solid #bae6fd; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">ℹ️ Wpis</span>';
         }
       }
@@ -796,7 +835,9 @@
       if (isHidden) {
         row.style.display = 'table-row';
         otwarteWierszeSet.add(rowKey);
-        if (window.MathJax && window.MathJax.typesetPromise) MathJax.typesetPromise([row]);
+        setTimeout(function() {
+          renderMathForElement(row);
+        }, 50);
       } else {
         row.style.display = 'none';
         otwarteWierszeSet.delete(rowKey);
