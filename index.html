@@ -33,7 +33,6 @@
       line-height: 1.5;
     }
 
-    /* KONTENER STRONY NA PEŁNY EKRAN */
     .page-wrapper {
       max-width: 1500px;
       margin: 0 auto;
@@ -324,7 +323,7 @@
 </head>
 <body>
 
-  <!-- BRAMKA LOGOWANIA WERYFIKOWANA PRZEZ BAZĘ SUPABASE -->
+  <!-- BRAMKA LOGOWANIA DLA NAUCZYCIELA -->
   <div id="teacher-login-gateway">
     <div class="gateway-card">
       <div style="width:52px; height:52px; background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border:1px solid #a7f3d0; border-radius:16px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto; font-size:1.4em; box-shadow:0 4px 10px rgba(16,185,129,0.15);">🔐</div>
@@ -450,7 +449,6 @@
     return escapeHtml(decoded);
   }
 
-  // BEZPIECZNA FUNKCJA RENDERUJĄCA MATHJAX BEZ BŁĘDÓW PAMIĘCI
   function renderMathForElement(element) {
     if (!element || !window.MathJax) return;
     try {
@@ -554,6 +552,13 @@
   async function pobierzDaneZBazy(isSilent) {
     if (!czyNauczycielZalogowany()) return;
 
+    // BLOKADA PRZEŁADOWANIA JEŚLI NAUCZYCIEL AKTUALNIE PISZE ODPOWIEDŹ
+    const activeEl = document.activeElement;
+    const isTyping = activeEl && (activeEl.tagName === 'TEXTAREA' || (activeEl.tagName === 'INPUT' && activeEl.type === 'text'));
+    if (isSilent && isTyping) {
+      return; 
+    }
+
     const tbody = document.getElementById('table-body');
     if (!tbody) return;
 
@@ -581,8 +586,6 @@
     pobraneDane = data || [];
     wykryjWszystkieTematyZBazy(pobraneDane);
 
-    // OCHRONA PRZED NIEPOTRZEBNYM KASOWANIEM WYRENDEROWANYCH WZORÓW CO 3s:
-    // Przeliczamy tabelę tylko, jeśli dane w bazie faktycznie się zmieniły lub nie było to ciche odświeżanie
     if (!isSilent || nowaTrescData !== staraTrescData) {
       filtrujIWyswietl();
     }
@@ -636,7 +639,14 @@
       else if (proc >= 50) badgeStyle = 'badge-mid';
 
       const maNotatki = u.private_notes && Object.keys(u.private_notes).length > 0;
-      const badgeNotatki = maNotatki ? '<span style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">💬 Notatka</span>' : '';
+      const maOdpowiedzi = u.teacher_notes && Object.keys(u.teacher_notes).length > 0;
+
+      let badgeNotatki = '';
+      if (maNotatki && !maOdpowiedzi) {
+        badgeNotatki = '<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">💬 Nowa notatka</span>';
+      } else if (maOdpowiedzi) {
+        badgeNotatki = '<span style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">👨‍🏫 Odpowiedziano</span>';
+      }
 
       const rowKey = u.id || `row_${idx}`;
       const isExpanded = otwarteWierszeSet.has(rowKey);
@@ -670,13 +680,13 @@
             <div class="details-container-inner">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid #cbd5e1; padding-bottom:10px;">
                 <span style="font-weight:bold; color:#0f172a; font-size:1.02em;">
-                  📊 Wpisane wzory, notatki i ocena odpowiedzi ucznia: <b style="color:#007a3d;">${escapeHtml(u.student_name)}</b> (${escapeHtml(klasa)})
+                  📊 Wpisane wzory, notatki i odpowiedzi dla ucznia: <b style="color:#007a3d;">${escapeHtml(u.student_name)}</b> (${escapeHtml(klasa)})
                 </span>
                 <button onclick="toggleDetails('${rowKey}', ${idx})" style="padding:5px 12px; font-size:0.82em; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1;">✖ Zamknij podgląd</button>
               </div>
 
-              <!-- SEKCJA PRYWATNYCH NOTATEK UCZNIA -->
-              ${formatujPrywatneNotatkiUcznia(u.private_notes)}
+              <!-- SEKCJA PRYWATNYCH NOTATEK UCZNIA ORAZ FORMULARZY ODPOWIEDZI NAUCZYCIELA -->
+              ${formatujPrywatneNotatkiIOdpowiedzi(u)}
 
               <!-- SEKCJA ODPOWIEDZI MATEMATYCZNYCH -->
               <div>${formatujWpisyUczniaMathJax(u.task_answers)}</div>
@@ -687,7 +697,6 @@
 
     tbody.innerHTML = html;
 
-    // Ponowne wywołanie MathJax dla wszystkich rozwiniętych wierszy
     setTimeout(function() {
       przefiltrowani.forEach((u, idx) => {
         const rowKey = u.id || `row_${idx}`;
@@ -699,64 +708,165 @@
     }, 60);
   }
 
-  function formatujPrywatneNotatkiUcznia(notesObj) {
-    if (!notesObj || Object.keys(notesObj).length === 0) return '';
+  // ULEPSZONE RENDEROWANIE NOTATEK UCZNIA Z MOŻLIWOŚCIĄ BEZPOŚREDNIEJ ODPOWIEDZI
+  function formatujPrywatneNotatkiIOdpowiedzi(u) {
+    const notesObj = u.private_notes || {};
+    const teacherNotesObj = u.teacher_notes || {};
+    const studentId = u.id;
 
-    let hasAnyNote = false;
+    const allTaskIds = Array.from(new Set([...Object.keys(notesObj), ...Object.keys(teacherNotesObj)]));
+
+    if (allTaskIds.length === 0) return '';
+
     let itemsHTML = '';
 
-    for (let taskId in notesObj) {
-      let treść = String(notesObj[taskId] || '').trim();
-      if (treść !== '') {
-        hasAnyNote = true;
-        itemsHTML += `
-          <div style="background:#ffffff; border:1px solid #bae6fd; border-radius:8px; padding:10px 14px;">
-            <strong style="color:#0369a1; font-size:0.85em; display:block; margin-bottom:4px;">📌 ${escapeHtml(taskId)}:</strong>
-            <div style="color:#1e293b; font-size:0.92em; white-space:pre-wrap; word-break:break-word; font-family:sans-serif;">${escapeHtml(treść)}</div>
-          </div>`;
-      }
-    }
+    allTaskIds.forEach(taskId => {
+      const studentNote = String(notesObj[taskId] || '').trim();
+      const teacherNoteEntry = teacherNotesObj[taskId];
+      const teacherText = typeof teacherNoteEntry === 'object' && teacherNoteEntry !== null ? (teacherNoteEntry.text || '') : (teacherNoteEntry || '');
+      const teacherDate = typeof teacherNoteEntry === 'object' && teacherNoteEntry !== null ? (teacherNoteEntry.date || '') : '';
 
-    if (!hasAnyNote) return '';
+      const safeTaskId = escapeHtml(taskId);
+      const inputId = `reply-${studentId}-${taskId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+      itemsHTML += `
+        <div style="background:#ffffff; border:1.5px solid #cbd5e1; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 2px 5px rgba(0,0,0,0.02);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+            <strong style="color:#0369a1; font-size:0.9em; display:flex; align-items:center; gap:6px;">
+              📌 <span>${safeTaskId}</span>
+            </strong>
+            ${teacherDate ? `<span style="font-size:0.75em; color:#059669; font-weight:600;">Ostatnia odpowiedź: ${escapeHtml(teacherDate)}</span>` : ''}
+          </div>
+
+          ${studentNote ? `
+            <div style="background:#f0f9ff; border-left:3px solid #0284c7; padding:8px 12px; border-radius:0 8px 8px 0; margin-bottom:12px;">
+              <span style="font-size:0.75em; color:#0369a1; font-weight:bold; display:block; margin-bottom:2px;">Pytanie / Uwaga Ucznia:</span>
+              <div style="color:#1e293b; font-size:0.92em; white-space:pre-wrap; word-break:break-word;">${escapeHtml(studentNote)}</div>
+            </div>
+          ` : '<div style="color:#64748b; font-size:0.82em; margin-bottom:8px; font-style:italic;">(Uczeń nie wpisał uwagi, ale możesz zostawić dla niego wskazówkę)</div>'}
+
+          <!-- FORMULARZ ODPOWIEDZI NAUCZYCIELA -->
+          <div style="background:#f0fdf4; border:1.5px solid #a7f3d0; border-radius:10px; padding:12px;" onclick="event.stopPropagation();">
+            <label for="${inputId}" style="display:block; font-size:0.82em; font-weight:bold; color:#15803d; margin-bottom:6px;">
+              👨‍🏫 Twoja prywatna odpowiedź dla ucznia:
+            </label>
+            <textarea id="${inputId}" rows="2" placeholder="Wpisz tutaj odpowiedź lub wskazówkę dla ucznia..." style="width:100%; box-sizing:border-box; border:1.5px solid #86efac; border-radius:8px; padding:8px 10px; font-size:0.9em; font-family:inherit; outline:none; resize:vertical; background:#ffffff;">${escapeHtml(teacherText)}</textarea>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+              <span id="status-${inputId}" style="font-size:0.8em; font-weight:bold; color:#16a34a; display:none;"></span>
+              <div style="display:flex; gap:8px; margin-left:auto;">
+                ${teacherText ? `<button type="button" onclick="usunOdpowiedzNauczyciela('${studentId}', '${safeTaskId}', '${inputId}')" style="background:#fee2e2; color:#be123c; border:1px solid #fca5a5; padding:6px 12px; border-radius:6px; font-size:0.8em; font-weight:bold; cursor:pointer;">🗑️ Usuń</button>` : ''}
+                <button type="button" onclick="zapiszOdpowiedzNauczyciela('${studentId}', '${safeTaskId}', '${inputId}')" style="background:linear-gradient(135deg, #007a3d 0%, #005c2e 100%); color:#ffffff; border:none; padding:7px 16px; border-radius:6px; font-size:0.82em; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,122,61,0.2);">💾 Zapisz / Wyślij odpowiedź</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    });
 
     return `
-      <div style="margin-bottom:20px; background:#f0f9ff; border:1.5px solid #7dd3fc; border-radius:12px; padding:14px 18px; text-align:left;">
-        <div style="font-weight:bold; color:#0369a1; font-size:0.95em; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
-          <span>🔒</span> Prywatne uwagi i pytania ucznia do zadań:
+      <div style="margin-bottom:20px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:14px; padding:16px 18px; text-align:left;">
+        <div style="font-weight:bold; color:#0f172a; font-size:1em; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+          <span>🔒</span> <span>Prywatne uwagi ucznia i Twoje odpowiedzi:</span>
         </div>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          ${itemsHTML}
-        </div>
+        <div>${itemsHTML}</div>
       </div>`;
   }
 
-  // ZAAWANSOWANA PRZETWARZARKA WZORÓW MATEMATYCZNYCH (NAPRAWIA \FRAC, UŁAMKI ORAZ BRAK NAWIASÓW)
+  // FUNKCJA ZAPISUJĄCA ODPOWIEDŹ NAUCZYCIELA W BAZIE SUPABASE
+  async function zapiszOdpowiedzNauczyciela(studentId, taskId, inputId) {
+    const textarea = document.getElementById(inputId);
+    const statusEl = document.getElementById(`status-${inputId}`);
+    if (!textarea) return;
+
+    const textVal = textarea.value.trim();
+    if (statusEl) {
+      statusEl.style.display = 'inline-block';
+      statusEl.style.color = '#0284c7';
+      statusEl.innerText = '⏳ Zapisywanie...';
+    }
+
+    const client = getSupabaseClient();
+    if (!client) {
+      alert('Błąd połączenia z Supabase!');
+      return;
+    }
+
+    try {
+      const { data, error: fetchErr } = await client
+        .from('student_results')
+        .select('teacher_notes')
+        .eq('id', studentId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      const currentTeacherNotes = data?.teacher_notes || {};
+
+      if (textVal === '') {
+        delete currentTeacherNotes[taskId];
+      } else {
+        currentTeacherNotes[taskId] = {
+          text: textVal,
+          date: new Date().toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+        };
+      }
+
+      const { error: upErr } = await client
+        .from('student_results')
+        .update({ teacher_notes: currentTeacherNotes })
+        .eq('id', studentId);
+
+      if (upErr) throw upErr;
+
+      if (statusEl) {
+        statusEl.style.color = '#15803d';
+        statusEl.innerText = '✅ Odpowiedź zapisana!';
+        setTimeout(() => {
+          if (statusEl) statusEl.style.display = 'none';
+        }, 3500);
+      }
+
+      const studentIdx = pobraneDane.findIndex(s => s.id === studentId);
+      if (studentIdx !== -1) {
+        pobraneDane[studentIdx].teacher_notes = currentTeacherNotes;
+      }
+    } catch(err) {
+      console.error('Błąd zapisu odpowiedzi:', err);
+      if (statusEl) {
+        statusEl.style.color = '#be123c';
+        statusEl.innerText = '❌ Błąd zapisu: ' + err.message;
+      }
+    }
+  }
+
+  // FUNKCJA KASOWANIA ODPOWIEDZI NAUCZYCIELA
+  async function usunOdpowiedzNauczyciela(studentId, taskId, inputId) {
+    if (!confirm('Czy na pewno usunąć swoją odpowiedź do tego zadania?')) return;
+    const textarea = document.getElementById(inputId);
+    if (textarea) textarea.value = '';
+    await zapiszOdpowiedzNauczyciela(studentId, taskId, inputId);
+    pobierzDaneZBazy(false);
+  }
+
   function naprawKodMatematyczny(val) {
     if (!val) return '';
     let str = String(val).trim();
 
-    // 1. Odkodowanie encji HTML
     str = str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
-    // 2. Obsługa symbolu stopni
     str = str.replace(/\^{\\circ}/g, '°')
              .replace(/\\circ/g, '°')
              .replace(/\^\{\circ\}/g, '°')
              .replace(/\^\\circ/g, '°');
 
-    // 3. Zamiana wielkich liter \FRAC / FRAC na małe \frac
     str = str.replace(/\\?FRAC/gi, '\\frac');
 
-    // 4. Naprawa braku nawiasów klamrowych w ułamkach np. \frac13 -> \frac{1}{3}
     str = str.replace(/\\frac\s*(\d+)\s*(\d+)/g, '\\frac{$1}{$2}');
     str = str.replace(/\\frac\s*\{([^}]+)\}\s*(\d+)/g, '\\frac{$1}{$2}');
     str = str.replace(/\\frac\s*(\d+)\s*\{([^}]+)\}/g, '\\frac{$1}{$2}');
 
-    // 5. Konwersja zwykłych zapisów z ukośnikiem np. "33 1/3" -> "33 \frac{1}{3}"
     str = str.replace(/(\d+)\s+(\d+)\/(\d+)/g, '$1 \\frac{$2}{$3}');
     str = str.replace(/^(\d+)\/(\d+)$/g, '\\frac{$1}{$2}');
-
-    // 6. Formatowanie spacji przed ułamkiem np. 33\frac -> 33 \frac
     str = str.replace(/(\d)\s*\\frac/g, '$1 \\frac');
 
     return str;
@@ -786,8 +896,6 @@
       }
 
       let title = taskLabel ? escapeHtml(taskLabel) : `Pole #${index}`;
-
-      // Wywołanie konwertera matematycznego
       let cleanVal = naprawKodMatematyczny(val);
 
       let displayVal = "";
@@ -797,7 +905,6 @@
         displayVal = '<span style="color:#94a3b8; font-style:italic;">Brak wpisu</span>';
         statusBadge = '<span style="color:#d97706; background:#fffbe3; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">⚠️ Brak odpowiedzi</span>';
       } else {
-        // Zawsze pakujemy wyczyszczony wzór w ograniczniki MathJax \( ... \)
         let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/') || cleanVal.includes('{') || cleanVal.includes('}');
         let formattedVal = isMath ? `\\(${cleanVal}\\)` : escapeHtml(cleanVal);
 
