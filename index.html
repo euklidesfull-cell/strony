@@ -1,1037 +1,1262 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>👨‍🏫 Dziennik Wyników - Panel Nauczyciela</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
-  <!-- MATHJAX DLA RENDEROWANIA WZORÓW -->
-  <script>
-    window.MathJax = {
-      tex: { 
-        inlineMath: [['\\(', '\\)']], 
-        displayMath: [['\\[', '\\]']],
-        macros: {
-          FRAC: ["\\frac{#1}{#2}", 2]
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planer Zajęć Dodatkowych (Lekcje 6 i 7)</title>
+    <style>
+        :root {
+            --bg-page: #f8fafc;
+            --surface: #ffffff;
+            --border-light: #e2e8f0;
+            --border-dark: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            
+            --project-purple: #7c3aed;
+            --project-purple-dark: #581c87;
+            --project-purple-bg: #faf5ff;
+            --project-purple-border: #d8b4fe;
+
+            --it-blue: #0284c7;
+            --it-blue-dark: #0369a1;
+            --it-blue-bg: #f0f9ff;
+            --it-blue-border: #bae6fd;
         }
-      },
-      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
-    };
-  </script>
-  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-  <style>
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      background-color: #f8fafc;
-      color: #0f172a;
-      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.5;
-    }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body { background-color: var(--bg-page); color: var(--text-main); padding: 16px; font-size: 13px; line-height: 1.4; }
+        .container { max-width: 1720px; margin: 0 auto; }
+        
+        /* Górny panel nagłówka */
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 12px; 
+            padding: 12px 16px;
+            background: #ffffff;
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        h1 { font-size: 1.15rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; }
 
-    .page-wrapper {
-      max-width: 1500px;
-      margin: 0 auto;
-      padding: 30px 40px;
-    }
+        /* Pasek filtrów */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+        }
+        .filter-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .filter-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
 
-    /* BRAMKA LOGOWANIA DLA NAUCZYCIELA */
-    #teacher-login-gateway {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      background: rgba(15, 23, 42, 0.8) !important;
-      backdrop-filter: blur(12px) !important;
-      -webkit-backdrop-filter: blur(12px) !important;
-      z-index: 2147483647 !important;
-      display: flex;
-      align-items: center !important;
-      justify-content: center !important;
-      font-family: 'Segoe UI', system-ui, sans-serif !important;
-      margin: 0 !important;
-      padding: 20px !important;
-    }
-    #teacher-login-gateway.hidden-gateway {
-      display: none !important;
-    }
+        .teacher-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.78rem;
+            font-weight: 600;
+            background: white;
+            transition: all 0.15s ease;
+        }
+        .teacher-chip:hover { border-color: #94a3b8; }
+        .teacher-chip input { cursor: pointer; width: 14px; height: 14px; }
 
-    .gateway-card {
-      background: #ffffff !important;
-      border-radius: 24px !important;
-      padding: 38px 34px !important;
-      width: 90% !important;
-      max-width: 390px !important;
-      text-align: center !important;
-      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.4) !important;
-      border: 1px solid #e2e8f0 !important;
-      animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-    }
-    @keyframes popIn { 0% { opacity: 0; transform: scale(0.92); } 100% { opacity: 1; transform: scale(1); } }
+        .badge-locked-info {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--project-purple);
+            background: var(--project-purple-bg);
+            border: 1px solid var(--project-purple-border);
+            padding: 5px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
 
-    /* NAGŁÓWEK GŁÓWNY */
-    .header-belka {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-top: 5px solid #007a3d;
-      padding: 20px 28px;
-      border-radius: 16px;
-      margin-bottom: 25px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
-    }
-    .header-title {
-      font-size: 1.4em;
-      font-weight: 700;
-      color: #0f172a;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      letter-spacing: -0.3px;
-    }
-    .live-indicator {
-      background: #f0fdf4;
-      color: #15803d;
-      padding: 7px 18px;
-      border-radius: 20px;
-      font-size: 0.82em;
-      font-weight: 700;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid #bbf7d0;
-      box-shadow: 0 2px 6px rgba(22, 163, 74, 0.08);
-    }
-    .live-dot-header {
-      width: 9px;
-      height: 9px;
-      background-color: #16a34a;
-      border-radius: 50%;
-      animation: pulse 1.8s infinite ease-in-out;
-    }
-    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.4; } }
+        /* Przyciski */
+        .btn { 
+            padding: 6px 12px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 700; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 6px; 
+            font-size: 0.78rem; 
+            transition: 0.15s; 
+            text-decoration: none; 
+        }
+        .btn-primary { background: #0f172a; color: white; }
+        .btn-primary:hover { background: #334155; }
+        .btn-accent { background: var(--project-purple); color: white; }
+        .btn-accent:hover { background: #6d28d9; }
+        .btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .btn-danger:hover { background: #fca5a5; }
+        .btn-sm { padding: 3px 8px; font-size: 0.72rem; }
 
-    .btn-logout {
-      background: #ffe4e6;
-      color: #be123c;
-      border: 1px solid #fca5a5;
-      padding: 7px 16px;
-      border-radius: 12px;
-      font-size: 0.85em;
-      font-weight: 700;
-      cursor: pointer;
-      margin-left: 12px;
-      transition: all 0.2s ease;
-    }
-    .btn-logout:hover { background: #fecdd3; }
+        /* Siatka planu */
+        .timetable-grid { 
+            display: grid; 
+            grid-template-columns: repeat(5, minmax(260px, 1fr)); 
+            gap: 12px; 
+            align-items: start;
+        }
+        .day-column { 
+            background: #ffffff; 
+            border-radius: 10px; 
+            border: 1px solid var(--border-dark); 
+            overflow: hidden; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+            display: flex; 
+            flex-direction: column; 
+        }
+        .day-header { 
+            background: #0f172a; 
+            color: #ffffff; 
+            padding: 10px; 
+            text-align: center; 
+            font-weight: 800; 
+            font-size: 0.88rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.8px; 
+        }
+        
+        /* Bloki lekcyjne */
+        .period-block { 
+            padding: 8px 10px; 
+            border-bottom: 1px solid #e2e8f0; 
+            min-height: 58px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 5px; 
+            background: #ffffff;
+        }
+        .period-block:last-child { border-bottom: none; }
+        
+        /* Strefa aktywna: Lekcja 6 i 7 */
+        .period-block-active {
+            background: #faf8ff;
+            border-left: 4px solid var(--project-purple);
+            min-height: 95px;
+        }
+        .period-block-active:hover { background: #f5f0ff; }
 
-    /* KARTA FILTRÓW */
-    .filters-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 20px 24px;
-      margin-bottom: 25px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-      align-items: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.02);
-    }
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .filter-group label {
-      font-size: 0.72em;
-      font-weight: 700;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-    select, button {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-    }
-    select {
-      padding: 10px 14px;
-      font-size: 13.5px;
-      border-radius: 10px;
-      border: 1.5px solid #e2e8f0;
-      background: #f8fafc;
-      color: #0f172a;
-      outline: none;
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
-    select:focus {
-      border-color: #007a3d;
-      background: #ffffff;
-      box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.12);
-    }
-    .btn-refresh {
-      background: linear-gradient(135deg, #007a3d 0%, #005c2e 100%);
-      color: #ffffff;
-      font-weight: 700;
-      font-size: 13.5px;
-      border: none;
-      cursor: pointer;
-      padding: 11px 22px;
-      border-radius: 10px;
-      margin-top: auto;
-      box-shadow: 0 4px 12px rgba(0, 122, 61, 0.2);
-      transition: all 0.2s ease;
-    }
-    .btn-refresh:hover {
-      background: linear-gradient(135deg, #008f48 0%, #006e37 100%);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(0, 122, 61, 0.3);
-    }
+        /* Nagłówek lekcji i godzin */
+        .period-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding-bottom: 4px;
+            margin-bottom: 2px;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .period-title {
+            font-size: 0.84rem;
+            font-weight: 800;
+            color: #1e293b;
+        }
+        .period-time {
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: #475569;
+            background: #f1f5f9;
+            padding: 2px 7px;
+            border-radius: 5px;
+            margin-left: 6px;
+            border: 1px solid #e2e8f0;
+        }
 
-    .btn-delete-bulk {
-      background: #ffe4e6;
-      color: #be123c;
-      border: 1px solid #fca5a5;
-      font-weight: 700;
-      font-size: 13.5px;
-      cursor: pointer;
-      padding: 10px 20px;
-      border-radius: 10px;
-      display: none;
-      margin-top: auto;
-      transition: all 0.2s ease;
-    }
-    .btn-delete-bulk:hover { background: #fecdd3; }
+        .parallel-counter { 
+            font-size: 0.68rem; 
+            color: #ffffff; 
+            background: var(--project-purple); 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-weight: 800; 
+        }
 
-    /* KARTY STATYSTYK */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 16px;
-      margin-bottom: 25px;
-    }
-    .stat-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 18px 22px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-      transition: all 0.2s ease;
-    }
-    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.04); }
-    .stat-card .label { font-size: 0.72em; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
-    .stat-card .value { font-size: 1.8em; font-weight: 800; color: #0f172a; margin-top: 4px; letter-spacing: -0.5px; }
+        /* Karty w planie */
+        .card-item {
+            border-radius: 6px;
+            padding: 6px 9px;
+            border: 1px solid;
+            font-size: 0.78rem;
+            line-height: 1.3;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
 
-    /* TABELA */
-    .table-container {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
-      width: 100%;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9em;
-    }
-    thead {
-      background-color: #f8fafc;
-      color: #475569;
-    }
-    th {
-      padding: 14px 20px;
-      font-weight: 700;
-      text-align: left;
-      border-bottom: 1px solid #e2e8f0;
-      font-size: 0.78em;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-    td {
-      padding: 15px 20px;
-      border-bottom: 1px solid #f1f5f9;
-      color: #334155;
-      vertical-align: middle;
-    }
-    
-    tr.student-row {
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-    tr.student-row:hover { background-color: #f8fafc !important; }
+        /* Wyróżnione Zespoły Projektowe */
+        .card-project {
+            background: var(--project-purple-bg) !important;
+            border: 1px solid var(--project-purple-border) !important;
+            border-left: 4px solid var(--project-purple) !important;
+            box-shadow: 0 2px 5px rgba(124, 58, 237, 0.08);
+        }
+        .project-title { 
+            font-weight: 800; 
+            color: var(--project-purple-dark); 
+            font-size: 0.84rem; 
+            margin-top: 1px;
+        }
 
-    /* BADGE I PRZYCISKI W TABELI */
-    .badge {
-      padding: 5px 14px;
-      border-radius: 20px;
-      font-weight: 700;
-      font-size: 0.85em;
-      display: inline-block;
-    }
-    .badge-high { background: #dcfce7; color: #15803d; border: 1px solid #a7f3d0; }
-    .badge-mid  { background: #fef9c3; color: #a16207; border: 1px solid #fef08a; }
-    .badge-low  { background: #ffe4e6; color: #be123c; border: 1px solid #fca5a5; }
+        /* Wyróżniona Informatyka */
+        .card-it {
+            background: var(--it-blue-bg) !important;
+            border: 1px solid var(--it-blue-border) !important;
+            border-left: 4px solid var(--it-blue) !important;
+        }
+        .it-title { font-weight: 800; color: var(--it-blue-dark); font-size: 0.8rem; }
 
-    .details-btn {
-      background: #e0f2fe;
-      border: 1px solid #bae6fd;
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: 0.82em;
-      font-weight: 700;
-      cursor: pointer;
-      color: #0369a1;
-      transition: all 0.15s ease;
-    }
-    .details-btn:hover { background: #bae6fd; color: #0284c7; }
+        .teacher-tag { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; }
+        .item-title { font-weight: 700; font-size: 0.78rem; color: #0f172a; }
 
-    .delete-btn {
-      background: #ffe4e6;
-      border: 1px solid #fca5a5;
-      color: #be123c;
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: 0.82em;
-      font-weight: 700;
-      cursor: pointer;
-      margin-left: 6px;
-      transition: all 0.15s ease;
-    }
-    .delete-btn:hover { background: #fecdd3; color: #9f1239; }
+        .students-pill-list { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+        .student-pill { 
+            background: #ffffff; 
+            border: 1px solid #cbd5e1; 
+            font-size: 0.7rem; 
+            font-weight: 600; 
+            padding: 1px 5px; 
+            border-radius: 4px; 
+            color: #1e293b; 
+        }
 
-    .details-fullrow {
-      display: none;
-      background-color: #f8fafc;
-    }
-    .details-container-inner {
-      padding: 22px 28px;
-      border-bottom: 2px solid #e2e8f0;
-      width: 100%;
-      box-sizing: border-box;
-    }
-  </style>
+        /* MODAL */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.5); backdrop-filter: blur(3px); justify-content: center; align-items: center; z-index: 1000; }
+        .modal.open { display: flex; }
+        .modal-content { background: white; padding: 22px; border-radius: 12px; width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 45px rgba(0,0,0,0.22); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.78rem; font-weight: 700; margin-bottom: 4px; color: #334155; }
+        input, select { width: 100%; padding: 8px 11px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.84rem; }
+        input:focus, select:focus { outline: none; border-color: var(--project-purple); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15); }
+
+        /* ZAKŁADKI WYBORU KLASY W MODALU */
+        .class-tabs-bar {
+            display: flex;
+            gap: 6px;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .class-tab-btn {
+            flex: 1;
+            min-width: 80px;
+            text-align: center;
+            padding: 7px 10px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .class-tab-btn:hover { background: #e2e8f0; color: #0f172a; }
+        .class-tab-btn.active {
+            background: var(--project-purple);
+            color: #ffffff;
+            box-shadow: 0 2px 5px rgba(124, 58, 237, 0.25);
+        }
+        .tab-count-badge {
+            background: rgba(255, 255, 255, 0.25);
+            color: inherit;
+            font-size: 0.68rem;
+            padding: 1px 5px;
+            border-radius: 10px;
+            font-weight: 800;
+        }
+        .class-tab-btn:not(.active) .tab-count-badge {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        /* Pasek akcji dla aktywnej klasy */
+        .class-actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .student-select-box { 
+            border: 1px solid #cbd5e1; 
+            border-radius: 8px; 
+            padding: 6px; 
+            max-height: 260px; 
+            overflow-y: auto; 
+            background: #ffffff; 
+        }
+
+        .student-checkbox-item { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 6px 10px; 
+            border-radius: 6px; 
+            font-size: 0.82rem; 
+            cursor: pointer; 
+            transition: 0.12s; 
+            border-bottom: 1px solid #f1f5f9; 
+        }
+        .student-checkbox-item:hover { background: #f8fafc; }
+        .student-checkbox-item.disabled { opacity: 0.65; background: #fff1f2; cursor: not-allowed; border-left: 3px solid #ef4444; }
+        
+        .conflict-badge { font-size: 0.7rem; background: #fee2e2; color: #991b1b; padding: 3px 7px; border-radius: 4px; font-weight: 700; border: 1px solid #fecaca; }
+        .it-overlap-badge { font-size: 0.7rem; background: #e0f2fe; color: #0369a1; padding: 3px 7px; border-radius: 4px; font-weight: 700; border: 1px solid #bae6fd; }
+        .available-badge { font-size: 0.7rem; background: #dcfce7; color: #166534; padding: 3px 7px; border-radius: 4px; font-weight: 700; }
+
+        /* Pasek podsumowania wybranych */
+        .selection-summary-bar {
+            background: #faf5ff;
+            border: 1px solid #e9d5ff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: #581c87;
+        }
+
+        /* Baza Uczniów */
+        .table-container { background: white; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; max-height: 520px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem; }
+        th, td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+        th { background: #f8fafc; font-weight: 700; color: #334155; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #e2e8f0; }
+
+        @media print {
+            body { padding: 0; background: white; }
+            .toolbar, header button, .badge-locked-info, .btn { display: none !important; }
+            .timetable-grid { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+            .day-column { border: 1px solid #000; box-shadow: none; }
+            .day-header { background: #eee !important; color: #000 !important; }
+            .card-item { border: 1px solid #888 !important; }
+        }
+    </style>
 </head>
 <body>
 
-  <!-- BRAMKA LOGOWANIA DLA NAUCZYCIELA -->
-  <div id="teacher-login-gateway">
-    <div class="gateway-card">
-      <div style="width:52px; height:52px; background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border:1px solid #a7f3d0; border-radius:16px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto; font-size:1.4em; box-shadow:0 4px 10px rgba(16,185,129,0.15);">🔐</div>
-      <h3 style="margin:0 0 6px 0; font-size:1.2em; color:#0f172a; font-weight:700;">Dostęp dla Nauczyciela</h3>
-      <p style="margin:0 0 20px 0; font-size:0.82em; color:#64748b; line-height:1.45;">Podaj hasło dostępowe, aby otworzyć Dziennik Wyników.</p>
-
-      <form onsubmit="weryfikujHasloNauczyciela(event)">
-        <input type="password" id="teacher-pass-input" placeholder="Wpisz hasło..." required style="width:100%; padding:12px; margin-bottom:14px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:14px; outline:none; text-align:center; letter-spacing:2px; font-weight:700; background:#f8fafc;">
-        <button type="submit" style="width:100%; padding:12px; background:linear-gradient(135deg, #007a3d 0%, #005c2e 100%); color:#ffffff; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 4px 12px rgba(0,122,61,0.22);">
-          Odblokuj Dziennik
-        </button>
-      </form>
-      <p id="gateway-error-msg" style="color:#be123c; font-size:0.8em; font-weight:700; margin-top:12px; display:none;"></p>
-    </div>
-  </div>
-
-  <div class="page-wrapper">
-
-    <div class="header-belka">
-      <div class="header-title">👨‍🏫 Panel Nauczyciela – Dziennik Wyników</div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div class="live-indicator">
-          <span class="live-dot-header"></span> Odświeżanie na żywo (co 3s) <span id="last-sync-time" style="font-weight:normal; opacity:0.8; margin-left:4px;"></span>
+<div class="container">
+    <header>
+        <div>
+            <h1>📅 Planer Zajęć Dodatkowych (Lekcje 6 i 7)</h1>
         </div>
-        <button onclick="wylogujNauczyciela()" class="btn-logout" title="Wyloguj i zablokuj panel">🚪 Wyloguj</button>
-      </div>
+        <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" onclick="switchView('students')">👥 Baza Uczniów (76)</button>
+            <button class="btn btn-secondary" onclick="window.print()">🖨️ Drukuj Plan</button>
+            <button class="btn btn-accent" onclick="openActivityModal()">+ Zaplanuj Nowy Zespół</button>
+        </div>
+    </header>
+
+    <!-- Pasek Filtrów i Oznaczeń -->
+    <div class="toolbar">
+        <div class="filter-group">
+            <span class="filter-label">Podgląd w planie:</span>
+            <div id="teacherFilterContainer" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+        </div>
+
+        <div class="filter-group">
+            <div class="badge-locked-info">
+                🔒 Lekcje 0–5 zablokowane • Planowanie na L6 i L7 • Informatyka może pokrywać się z zespołami
+            </div>
+        </div>
     </div>
 
-    <div class="filters-card">
-      <div class="filter-group">
-        <label>1. Wybierz Klasę:</label>
-        <select id="filter-class" onchange="filtrujIWyswietl()">
-          <option value="ALL" selected>-- Wszystkie Klasy (4-8) --</option>
-          <option value="Klasa 4">Klasa 4</option>
-          <option value="Klasa 5">Klasa 5</option>
-          <option value="Klasa 6">Klasa 6</option>
-          <option value="Klasa 7">Klasa 7</option>
-          <option value="Klasa 8">Klasa 8</option>
-        </select>
-      </div>
-
-      <div class="filter-group">
-        <label>2. Wybierz Temat Lekcji:</label>
-        <select id="filter-topic" onchange="filtrujIWyswietl()">
-          <option value="ALL" selected>-- Wszystkie Tematy Lekcji --</option>
-        </select>
-      </div>
-
-      <button class="btn-refresh" onclick="pobierzDaneZBazy(false)">🔄 Odśwież Teraz</button>
-      <button id="btn-delete-selected" class="btn-delete-bulk" onclick="usunZaznaczonychUczniow()">🗑️ Usuń zaznaczone (0)</button>
+    <!-- WIDOK PLANU GŁÓWNEGO -->
+    <div id="view-plan">
+        <div class="timetable-grid" id="timetableGrid"></div>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="label">Liczba Uczniów w Bazie</div>
-        <div class="value" id="stat-students">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Średni Wynik Klasy</div>
-        <div class="value" id="stat-avg" style="color:#007a3d;">0%</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Najwyższy Wynik</div>
-        <div class="value" id="stat-max" style="color:#16a34a;">0%</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Najniższy Wynik</div>
-        <div class="value" id="stat-min" style="color:#be123c;">0%</div>
-      </div>
-    </div>
+    <!-- WIDOK BAZY UCZNIÓW -->
+    <div id="view-students" style="display: none; margin-top: 10px;">
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;">
+                    <button class="btn btn-secondary" onclick="switchView('plan')">← Wróć do Planu</button>
+                    <input type="text" id="filterStudentInput" placeholder="🔍 Szukaj ucznia lub klasy..." style="max-width: 240px; padding: 6px 10px;" oninput="renderStudentsTable()">
+                    <button class="btn btn-secondary btn-sm" onclick="resetToInitialState()">🔄 Przywróć dane początkowe</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">Lp.</th>
+                                <th>Nazwisko i Imię</th>
+                                <th style="width: 70px;">Klasa</th>
+                                <th style="width: 70px; text-align: right;">Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
 
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 40px; text-align: center;">
-              <input type="checkbox" id="select-all-checkbox" onchange="zaznaczWszystkie(this)">
-            </th>
-            <th>Uczeń (Imię i Nazwisko)</th>
-            <th>Klasa</th>
-            <th>PIN</th>
-            <th>Poprawne Pola</th>
-            <th>Wynik (%)</th>
-            <th>Tytuł Lekcji / Czas Zapisania</th>
-            <th>Akcje / Zarządzanie</th>
-          </tr>
-        </thead>
-        <tbody id="table-body">
-          <tr>
-            <td colspan="8" style="text-align:center; color:#64748b; padding:40px;">Wpisz hasło dostępowe, aby zobaczyć Dziennik Wyników...</td>
-          </tr>
-        </tbody>
-      </table>
+            <div style="width: 270px; background: white; padding: 18px; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                <h3 style="margin-bottom: 12px; font-size: 0.9rem; font-weight: 800;">Dodaj nowego ucznia</h3>
+                <div class="form-group">
+                    <label>Nazwisko i Imię</label>
+                    <input type="text" id="newStudentName" placeholder="np. Kowalski Jan">
+                </div>
+                <div class="form-group">
+                    <label>Klasa</label>
+                    <select id="newStudentClass">
+                        <option value="4A">4A</option>
+                        <option value="5A">5A</option>
+                        <option value="6A">6A</option>
+                        <option value="7A">7A</option>
+                        <option value="8A">8A</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 6px;" onclick="addStudent()">+ Dodaj ucznia</button>
+            </div>
+        </div>
     </div>
+</div>
 
-  </div>
+<!-- MODAL PLANOWANIA ZAJĘĆ Z OSOBNYMI ZAKŁADKAMI KLAS -->
+<div class="modal" id="activityModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle" style="font-size: 1.05rem; font-weight: 800; color: #0f172a;">Planowanie Zespołu Projektowego</h2>
+            <button style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" onclick="closeActivityModal()">&times;</button>
+        </div>
+
+        <form id="activityForm" onsubmit="saveActivity(event)">
+            <input type="hidden" id="activityId">
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Dzień tygodnia</label>
+                    <select id="activityDay" onchange="handleTimeOrTeacherChange()" required>
+                        <option value="Poniedziałek">Poniedziałek</option>
+                        <option value="Wtorek">Wtorek</option>
+                        <option value="Środa">Środa</option>
+                        <option value="Czwartek">Czwartek</option>
+                        <option value="Piątek">Piątek</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Godzina lekcyjna</label>
+                    <select id="activityPeriod" onchange="handleTimeOrTeacherChange()" required>
+                        <option value="6">Lekcja 6 (12:45 – 13:30)</option>
+                        <option value="7">Lekcja 7 (13:40 – 14:25)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Nazwa Zespołu</label>
+                    <input type="text" id="activityName" placeholder="np. Równanie na Sukces – Klasa 6" required>
+                </div>
+                <div class="form-group">
+                    <label>Prowadzący nauczyciel</label>
+                    <select id="activityTeacherId" onchange="handleTimeOrTeacherChange()" required></select>
+                    <div id="teacherWarning" style="font-size:0.72rem; color:#b91c1c; margin-top:3px; font-weight:700;"></div>
+                </div>
+            </div>
+
+            <!-- WYBÓR UCZNIÓW: ZAKŁADKI KLAS -->
+            <div class="form-group" style="margin-top: 14px;">
+                <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; margin-bottom: 6px;">
+                    👥 Wybierz klasę i uczestników zespołu:
+                </label>
+
+                <!-- Pasek Zakładek -->
+                <div class="class-tabs-bar" id="classTabsContainer"></div>
+
+                <!-- Pasek akcji dla danej klasy -->
+                <div class="class-actions-bar">
+                    <div id="activeClassActionTitle" style="font-weight: 800; font-size: 0.8rem; color: #1e293b;"></div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="text" id="modalSearchStudent" placeholder="🔍 Szukaj w tej klasie..." style="width: 160px; padding: 4px 8px; font-size: 0.74rem;" oninput="renderStudentListForActiveTab()">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleActiveTabClass(true)">✓ Zaznacz wolnych</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleActiveTabClass(false)">✕ Odznacz</button>
+                    </div>
+                </div>
+
+                <!-- Kontener listy uczniów dla aktywnej zakładki -->
+                <div class="student-select-box" id="studentsCheckboxList"></div>
+
+                <!-- Podsumowanie wybranych -->
+                <div class="selection-summary-bar">
+                    <div>
+                        <strong>Łącznie wybranych:</strong> <span id="totalSelectedCountBadge" style="font-weight: 800; font-size: 0.9rem;">0 uczniów</span>
+                    </div>
+                    <div id="selectedByClassSummary" style="font-size: 0.75rem; color: #7c3aed; font-weight: 700;"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button type="button" class="btn btn-secondary" onclick="closeActivityModal()">Anuluj</button>
+                <button type="submit" class="btn btn-accent" style="padding: 8px 16px; font-size: 0.82rem;">💾 Zapisz Zespół</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
-  const SUPABASE_URL = "https://cdtvafmqcgfupouxxncj.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_ejhbGmEhRkrnlLUtuU_6kw_Q_4WGnZj";
-  
-  let pobraneDane = [];
-  const otwarteWierszeSet = new Set();
+    const DAYS = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
+    const PERIOD_HOURS = {
+        0: '07:15 – 08:00',
+        1: '08:00 – 08:45',
+        2: '08:55 – 09:40',
+        3: '09:55 – 10:40',
+        4: '10:50 – 11:35',
+        5: '11:50 – 12:35',
+        6: '12:45 – 13:30',
+        7: '13:40 – 14:25',
+        8: '14:30 – 15:15'
+    };
 
-  function getSupabaseClient() {
-    if (window.mySupabaseClient) return window.mySupabaseClient;
-    const lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
-    if (lib && lib.createClient) {
-      window.mySupabaseClient = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      return window.mySupabaseClient;
+    const CLASSES = ['4A', '5A', '6A', '7A', '8A'];
+
+    const defaultTeachers = [
+        { id: 't_szymanski', name: 'Stanisław Szymański', subject: 'Matematyka', color: '#1d4ed8', border: '#bfdbfe', bg: '#eff6ff', swietlicaBg: '#ecfeff', swietlicaBorder: '#a5f3fc', visible: false },
+        { id: 't_ludziejewska', name: 'Beata Ludziejewska', subject: 'J. polski / Wych. 8a', color: '#047857', border: '#a7f3d0', bg: '#ecfdf5', swietlicaBg: '#ecfeff', swietlicaBorder: '#a5f3fc', visible: false },
+        { id: 't_konecka', name: 'Katarzyna Konecka', subject: 'J. angielski', color: '#b45309', border: '#fde68a', bg: '#fffbeb', swietlicaBg: '#ecfeff', swietlicaBorder: '#a5f3fc', visible: false },
+        { id: 't_angielski_5a', name: 'J. Angielski (Wych. 5a)', subject: 'J. angielski', color: '#be123c', border: '#fecdd3', bg: '#fff1f2', swietlicaBg: '#ecfeff', swietlicaBorder: '#a5f3fc', visible: false },
+        { id: 't_informatyka', name: 'Informatyka (wszystkie klasy)', subject: 'Informatyka', color: '#0284c7', border: '#bae6fd', bg: '#f0f9ff', swietlicaBg: '#ecfeff', swietlicaBorder: '#a5f3fc', visible: true }
+    ];
+
+    const defaultStudents = [
+        // 4A
+        { id: 401, name: "Bogacz Nadia", class: "4A" },
+        { id: 402, name: "Froń Anna", class: "4A" },
+        { id: 403, name: "Idziak Oktawia", class: "4A" },
+        { id: 404, name: "Ilski Igor", class: "4A" },
+        { id: 405, name: "Janic Ksawery", class: "4A" },
+        { id: 406, name: "Janic Natalia", class: "4A" },
+        { id: 407, name: "Jeziorny Antoni", class: "4A" },
+        { id: 408, name: "Jędrzejewski Wojciech", class: "4A" },
+        { id: 409, name: "Konieczna Antonina", class: "4A" },
+        { id: 410, name: "Kruszelnicki Filip", class: "4A" },
+        { id: 411, name: "Kuropka Antoni", class: "4A" },
+        { id: 412, name: "Ligęza Bartłomiej", class: "4A" },
+        { id: 413, name: "Łacina Antoni", class: "4A" },
+        { id: 414, name: "Rapalska Malwina", class: "4A" },
+        { id: 415, name: "Skrobek Nadia", class: "4A" },
+        { id: 416, name: "Szczyrk Kacper", class: "4A" },
+        { id: 417, name: "Thiel Franciszek", class: "4A" },
+        { id: 418, name: "Walczybak Wojciech", class: "4A" },
+        { id: 419, name: "Zaremba Grzegorz", class: "4A" },
+        { id: 420, name: "Zielińska Klaudia", class: "4A" },
+        // 5A
+        { id: 501, name: "Bobko Alicja", class: "5A" },
+        { id: 502, name: "Domalaczny Jakub", class: "5A" },
+        { id: 503, name: "Froń Katarzyna", class: "5A" },
+        { id: 504, name: "Gorlicka Klaudia", class: "5A" },
+        { id: 505, name: "Gustaw Emilia", class: "5A" },
+        { id: 506, name: "Jędrczak Nikola", class: "5A" },
+        { id: 507, name: "Kokociński Natan", class: "5A" },
+        { id: 508, name: "Kudliński Kacper", class: "5A" },
+        { id: 509, name: "Mierzwa Jakub", class: "5A" },
+        { id: 510, name: "Płóciennik Julia", class: "5A" },
+        { id: 511, name: "Świtoń Agnieszka", class: "5A" },
+        { id: 512, name: "Wilkosz Miłosz", class: "5A" },
+        { id: 513, name: "Zaremba Filip", class: "5A" },
+        // 6A
+        { id: 601, name: "Carballo - Staniszewska Patrycja", class: "6A" },
+        { id: 602, name: "Chrapek Zofia", class: "6A" },
+        { id: 603, name: "Gjini Braian", class: "6A" },
+        { id: 604, name: "Kowalski Igor", class: "6A" },
+        { id: 605, name: "Mazur Wiktoria", class: "6A" },
+        { id: 606, name: "Mierzwa Julia", class: "6A" },
+        { id: 607, name: "Mrugała Kajetan", class: "6A" },
+        { id: 608, name: "Palacz Julia", class: "6A" },
+        { id: 609, name: "Sikora Bartosz", class: "6A" },
+        { id: 610, name: "Snopek Michał", class: "6A" },
+        { id: 611, name: "Ślazyk Szymon", class: "6A" },
+        { id: 612, name: "Turska Aleksandra", class: "6A" },
+        // 7A
+        { id: 701, name: "Balcerzak Maja", class: "7A" },
+        { id: 702, name: "Bedka Kornelia", class: "7A" },
+        { id: 703, name: "Cichosz Aleksandra", class: "7A" },
+        { id: 704, name: "De Vlieger Weronika", class: "7A" },
+        { id: 705, name: "Domalaczny Natan", class: "7A" },
+        { id: 706, name: "Jędrczak Hanna", class: "7A" },
+        { id: 707, name: "Koczynasz Zuzanna", class: "7A" },
+        { id: 708, name: "Kowalewska Wiktoria", class: "7A" },
+        { id: 709, name: "Kudlińska Aleksandra", class: "7A" },
+        { id: 710, name: "Lenda Kacper", class: "7A" },
+        { id: 711, name: "Olech Jolina", class: "7A" },
+        { id: 712, name: "Powąska Jakub", class: "7A" },
+        { id: 713, name: "Pustelnik Igor", class: "7A" },
+        { id: 714, name: "Smug Karolina", class: "7A" },
+        { id: 715, name: "Sokołowska Marta", class: "7A" },
+        { id: 716, name: "Stajszczyk Maja", class: "7A" },
+        { id: 717, name: "Szynklarz Zuzanna", class: "7A" },
+        { id: 718, name: "Ślazyk Marika", class: "7A" },
+        { id: 719, name: "Wojewódzki Szymon", class: "7A" },
+        // 8A
+        { id: 801, name: "Bedka Ksawery", class: "8A" },
+        { id: 802, name: "Froń Aleksandra", class: "8A" },
+        { id: 803, name: "Gustaw Michał", class: "8A" },
+        { id: 804, name: "Jeziorna Laura", class: "8A" },
+        { id: 805, name: "Jeziorna Milena", class: "8A" },
+        { id: 806, name: "Jędrczak Zuzanna", class: "8A" },
+        { id: 807, name: "Kowalczyk Szymon", class: "8A" },
+        { id: 808, name: "Lisek Grzegorz", class: "8A" },
+        { id: 809, name: "Machnik Oliwia", class: "8A" },
+        { id: 810, name: "Ostrowska Natasza", class: "8A" },
+        { id: 811, name: "Płóciennik Maja", class: "8A" },
+        { id: 812, name: "Ślazyk Emilia", class: "8A" }
+    ];
+
+    const defaultActivities = [
+        // INFORMATYKA
+        { id: 'inf_pon_6a', teacherId: 't_informatyka', type: 'it', day: 'Poniedziałek', period: 6, name: 'Informatyka – Klasa 6A', targetClass: '6A' },
+        { id: 'inf_pon_8a', teacherId: 't_informatyka', type: 'it', day: 'Poniedziałek', period: 7, name: 'Informatyka – Klasa 8A', targetClass: '8A' },
+        
+        { id: 'inf_wto_7a_5', teacherId: 't_informatyka', type: 'it', day: 'Wtorek', period: 5, name: 'Informatyka – Klasa 7A', targetClass: '7A' },
+        { id: 'inf_wto_6a_6', teacherId: 't_informatyka', type: 'it', day: 'Wtorek', period: 6, name: 'Informatyka – Klasa 6A', targetClass: '6A' },
+        { id: 'inf_wto_7a_7', teacherId: 't_informatyka', type: 'it', day: 'Wtorek', period: 7, name: 'Informatyka – Klasa 7A', targetClass: '7A' },
+
+        { id: 'inf_sro_5a_5', teacherId: 't_informatyka', type: 'it', day: 'Środa', period: 5, name: 'Informatyka – Klasa 5A', targetClass: '5A' },
+        { id: 'inf_sro_4a_6', teacherId: 't_informatyka', type: 'it', day: 'Środa', period: 6, name: 'Informatyka – Klasa 4A', targetClass: '4A' },
+
+        { id: 'inf_czw_4a_6', teacherId: 't_informatyka', type: 'it', day: 'Czwartek', period: 6, name: 'Informatyka – Klasa 4A', targetClass: '4A' },
+        { id: 'inf_czw_8a_7', teacherId: 't_informatyka', type: 'it', day: 'Czwartek', period: 7, name: 'Informatyka – Klasa 8A', targetClass: '8A' },
+
+        { id: 'inf_pia_5a_7', teacherId: 't_informatyka', type: 'it', day: 'Piątek', period: 7, name: 'Informatyka – Klasa 5A', targetClass: '5A' },
+
+        // STANISŁAW SZYMAŃSKI
+        { id: 'ss_p2', teacherId: 't_szymanski', type: 'lesson', day: 'Poniedziałek', period: 2, name: 'Matematyka – 8a' },
+        { id: 'ss_p3', teacherId: 't_szymanski', type: 'lesson', day: 'Poniedziałek', period: 3, name: 'Matematyka – 4a' },
+        { id: 'ss_p5', teacherId: 't_szymanski', type: 'lesson', day: 'Poniedziałek', period: 5, name: 'Matematyka – 6a' },
+        { id: 'act_rns_6', teacherId: 't_szymanski', type: 'project', day: 'Poniedziałek', period: 6, name: 'Równanie na Sukces – Klasa 6', studentIds: [601, 602, 608, 609] },
+        { id: 'act_rns_4', teacherId: 't_szymanski', type: 'project', day: 'Poniedziałek', period: 7, name: 'Równanie na Sukces – Klasa 4', studentIds: [417, 405, 413, 401, 402, 412, 414, 420] },
+
+        { id: 'ss_w1', teacherId: 't_szymanski', type: 'lesson', day: 'Wtorek', period: 1, name: 'Matematyka – 6a' },
+        { id: 'ss_w3', teacherId: 't_szymanski', type: 'lesson', day: 'Wtorek', period: 3, name: 'Matematyka – 4a' },
+        { id: 'ss_w4', teacherId: 't_szymanski', type: 'lesson', day: 'Wtorek', period: 4, name: 'Matematyka – 5a' },
+        { id: 'ss_w6', teacherId: 't_szymanski', type: 'lesson', day: 'Wtorek', period: 6, name: 'Matematyka – 7a' },
+        { id: 'act_rns_7', teacherId: 't_szymanski', type: 'project', day: 'Wtorek', period: 7, name: 'Równanie na Sukces – Klasa 7', studentIds: [701, 702, 706, 707, 708, 712, 716, 717] },
+
+        { id: 'ss_s2', teacherId: 't_szymanski', type: 'lesson', day: 'Środa', period: 2, name: 'Matematyka – 4a' },
+        { id: 'ss_s3', teacherId: 't_szymanski', type: 'lesson', day: 'Środa', period: 3, name: 'Matematyka – 5a' },
+        { id: 'ss_s4', teacherId: 't_szymanski', type: 'lesson', day: 'Środa', period: 4, name: 'Matematyka – 7a' },
+        { id: 'ss_s5', teacherId: 't_szymanski', type: 'lesson', day: 'Środa', period: 5, name: 'Matematyka – 8a' },
+        { id: 'ss_s6', teacherId: 't_szymanski', type: 'swietlica', day: 'Środa', period: 6, name: 'Świetlica szkolna' },
+        { id: 'ss_s7', teacherId: 't_szymanski', type: 'swietlica', day: 'Środa', period: 7, name: 'Świetlica szkolna' },
+
+        { id: 'ss_c0', teacherId: 't_szymanski', type: 'swietlica', day: 'Czwartek', period: 0, name: 'Świetlica szkolna' },
+        { id: 'ss_c1', teacherId: 't_szymanski', type: 'lesson', day: 'Czwartek', period: 1, name: 'Matematyka – 8a' },
+        { id: 'ss_c2', teacherId: 't_szymanski', type: 'lesson', day: 'Czwartek', period: 2, name: 'Matematyka – 4a' },
+        { id: 'ss_c3', teacherId: 't_szymanski', type: 'lesson', day: 'Czwartek', period: 3, name: 'Matematyka – 5a' },
+        { id: 'ss_c4', teacherId: 't_szymanski', type: 'lesson', day: 'Czwartek', period: 4, name: 'Matematyka – 6a' },
+        { id: 'ss_c5', teacherId: 't_szymanski', type: 'lesson', day: 'Czwartek', period: 5, name: 'Matematyka – 7a' },
+        { id: 'act_rns_8', teacherId: 't_szymanski', type: 'project', day: 'Czwartek', period: 7, name: 'Równanie na Sukces – Klasa 8', studentIds: [803, 802, 806, 812, 809, 807] },
+
+        { id: 'ss_p0', teacherId: 't_szymanski', type: 'swietlica', day: 'Piątek', period: 0, name: 'Świetlica szkolna' },
+        { id: 'ss_p1', teacherId: 't_szymanski', type: 'lesson', day: 'Piątek', period: 1, name: 'Matematyka – 6a' },
+        { id: 'ss_p2_pt', teacherId: 't_szymanski', type: 'lesson', day: 'Piątek', period: 2, name: 'Matematyka – 8a' },
+        { id: 'ss_p3_pt', teacherId: 't_szymanski', type: 'lesson', day: 'Piątek', period: 3, name: 'Matematyka – 7a' },
+        { id: 'ss_p5_pt', teacherId: 't_szymanski', type: 'lesson', day: 'Piątek', period: 5, name: 'Matematyka – 5a' },
+        { id: 'act_rns_5', teacherId: 't_szymanski', type: 'project', day: 'Piątek', period: 6, name: 'Równanie na Sukces – Klasa 5', studentIds: [503, 505, 506, 511] },
+
+        // BEATA LUDZIEJEWSKA
+        { id: 'bl_w1', teacherId: 't_ludziejewska', type: 'lesson', day: 'Wtorek', period: 1, name: 'Wychowawcza – 8a' },
+        { id: 'bl_w2', teacherId: 't_ludziejewska', type: 'lesson', day: 'Wtorek', period: 2, name: 'Wychowawcza – 8a' },
+        { id: 'bl_w3', teacherId: 't_ludziejewska', type: 'lesson', day: 'Wtorek', period: 3, name: 'Wychowawcza – 8a' },
+        { id: 'bl_w4', teacherId: 't_ludziejewska', type: 'lesson', day: 'Wtorek', period: 4, name: 'Wychowawcza – 8a' },
+
+        { id: 'bl_s1', teacherId: 't_ludziejewska', type: 'lesson', day: 'Środa', period: 1, name: 'Wychowawcza – 8a' },
+        { id: 'bl_s2', teacherId: 't_ludziejewska', type: 'lesson', day: 'Środa', period: 2, name: 'Wychowawcza – 8a' },
+        { id: 'bl_s3', teacherId: 't_ludziejewska', type: 'lesson', day: 'Środa', period: 3, name: 'Wychowawcza – 8a' },
+        { id: 'bl_s4', teacherId: 't_ludziejewska', type: 'lesson', day: 'Środa', period: 4, name: 'Wychowawcza – 8a' },
+        { id: 'bl_s5', teacherId: 't_ludziejewska', type: 'lesson', day: 'Środa', period: 5, name: 'Wychowawcza – 8a' },
+
+        { id: 'bl_c1', teacherId: 't_ludziejewska', type: 'lesson', day: 'Czwartek', period: 1, name: 'J. polski – 5a' },
+        { id: 'bl_c4', teacherId: 't_ludziejewska', type: 'lesson', day: 'Czwartek', period: 4, name: 'J. polski – 4a' },
+        { id: 'bl_c5', teacherId: 't_ludziejewska', type: 'lesson', day: 'Czwartek', period: 5, name: 'J. polski – 6a' },
+        { id: 'bl_c6', teacherId: 't_ludziejewska', type: 'lesson', day: 'Czwartek', period: 6, name: 'J. polski – 8a' },
+
+        { id: 'bl_p3', teacherId: 't_ludziejewska', type: 'lesson', day: 'Piątek', period: 3, name: 'J. polski – 8a' },
+        { id: 'bl_p4', teacherId: 't_ludziejewska', type: 'lesson', day: 'Piątek', period: 4, name: 'J. polski – 5a' },
+        { id: 'bl_p5', teacherId: 't_ludziejewska', type: 'lesson', day: 'Piątek', period: 5, name: 'J. polski – 4a' },
+        { id: 'bl_p6_1', teacherId: 't_ludziejewska', type: 'lesson', day: 'Piątek', period: 6, name: 'J. polski – 4a' },
+        { id: 'bl_p6_2', teacherId: 't_ludziejewska', type: 'swietlica', day: 'Piątek', period: 6, name: 'Świetlica szkolna' },
+        { id: 'bl_p7', teacherId: 't_ludziejewska', type: 'swietlica', day: 'Piątek', period: 7, name: 'Świetlica szkolna' },
+
+        // KATARZYNA KONECKA
+        { id: 'kk_c1', teacherId: 't_konecka', type: 'lesson', day: 'Czwartek', period: 1, name: 'Ed. jęz. (ang.) – 2a' },
+        { id: 'kk_c2', teacherId: 't_konecka', type: 'lesson', day: 'Czwartek', period: 2, name: 'J. angielski – 6a' },
+        { id: 'kk_c3', teacherId: 't_konecka', type: 'lesson', day: 'Czwartek', period: 3, name: 'J. angielski [OP]' },
+        { id: 'kk_c4', teacherId: 't_konecka', type: 'lesson', day: 'Czwartek', period: 4, name: 'J. angielski [OP]' },
+
+        { id: 'kk_p1', teacherId: 't_konecka', type: 'lesson', day: 'Piątek', period: 1, name: 'Ed. jęz. (ang.) – 3a' },
+        { id: 'kk_p2', teacherId: 't_konecka', type: 'lesson', day: 'Piątek', period: 2, name: 'Ed. jęz. (ang.) – 2b' },
+        { id: 'kk_p3', teacherId: 't_konecka', type: 'lesson', day: 'Piątek', period: 3, name: 'Ed. jęz. (ang.) – 2a' },
+
+        // J. ANGIELSKI (WYCH. 5A)
+        { id: 'ang_w1', teacherId: 't_angielski_5a', type: 'lesson', day: 'Wtorek', period: 1, name: 'Wychowawcza – 5a' },
+        { id: 'ang_w2', teacherId: 't_angielski_5a', type: 'lesson', day: 'Wtorek', period: 2, name: 'Wychowawcza – 5a' },
+        { id: 'ang_w3', teacherId: 't_angielski_5a', type: 'lesson', day: 'Wtorek', period: 3, name: 'Wychowawcza – 5a' },
+        { id: 'ang_w4', teacherId: 't_angielski_5a', type: 'lesson', day: 'Wtorek', period: 4, name: 'Wychowawcza – 5a' },
+
+        { id: 'ang_s1', teacherId: 't_angielski_5a', type: 'lesson', day: 'Środa', period: 1, name: 'Wychowawcza – 5a' },
+        { id: 'ang_s2', teacherId: 't_angielski_5a', type: 'lesson', day: 'Środa', period: 2, name: 'Wychowawcza – 5a' },
+        { id: 'ang_s3', teacherId: 't_angielski_5a', type: 'lesson', day: 'Środa', period: 3, name: 'Wychowawcza – 5a' },
+        { id: 'ang_s4', teacherId: 't_angielski_5a', type: 'lesson', day: 'Środa', period: 4, name: 'Wychowawcza – 5a' },
+        { id: 'ang_s5', teacherId: 't_angielski_5a', type: 'lesson', day: 'Środa', period: 5, name: 'Wychowawcza – 5a' },
+
+        { id: 'ang_c3', teacherId: 't_angielski_5a', type: 'lesson', day: 'Czwartek', period: 3, name: 'J. angielski – 7a' },
+        { id: 'ang_c4', teacherId: 't_angielski_5a', type: 'lesson', day: 'Czwartek', period: 4, name: 'J. angielski – 8a' },
+        { id: 'ang_c5', teacherId: 't_angielski_5a', type: 'lesson', day: 'Czwartek', period: 5, name: 'J. angielski – 5a' },
+
+        { id: 'ang_p1', teacherId: 't_angielski_5a', type: 'lesson', day: 'Piątek', period: 1, name: 'J. angielski – 5a' },
+        { id: 'ang_p4', teacherId: 't_angielski_5a', type: 'lesson', day: 'Piątek', period: 4, name: 'J. angielski – 4a' },
+        { id: 'ang_p5', teacherId: 't_angielski_5a', type: 'lesson', day: 'Piątek', period: 5, name: 'J. angielski – 7a' }
+    ];
+
+    let teachers = JSON.parse(localStorage.getItem('timetable_teachers_v15_tabs')) || defaultTeachers;
+    let students = JSON.parse(localStorage.getItem('timetable_students_v15_tabs')) || defaultStudents;
+    let activities = JSON.parse(localStorage.getItem('timetable_activities_v15_tabs')) || defaultActivities;
+
+    // Stan wyboru uczniów w aktywnym modalu
+    let activeModalSelectedIds = new Set();
+    let currentModalClassTab = '4A'; // '4A', '5A', '6A', '7A', '8A', 'SELECTED'
+
+    function saveData() {
+        localStorage.setItem('timetable_teachers_v15_tabs', JSON.stringify(teachers));
+        localStorage.setItem('timetable_students_v15_tabs', JSON.stringify(students));
+        localStorage.setItem('timetable_activities_v15_tabs', JSON.stringify(activities));
     }
-    return null;
-  }
 
-  function formatTitle(text) {
-    if (!text) return '';
-    let decoded = String(text)
-      .replace(/&#176;/g, '°')
-      .replace(/&deg;/g, '°')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&#39;/g, "'")
-      .replace(/&quot;/g, '"');
-    return escapeHtml(decoded);
-  }
+    function resetToInitialState() {
+        if (confirm('Czy na pewno chcesz przywrócić domyślny plan i bazę uczniów?')) {
+            teachers = JSON.parse(JSON.stringify(defaultTeachers));
+            students = JSON.parse(JSON.stringify(defaultStudents));
+            activities = JSON.parse(JSON.stringify(defaultActivities));
+            saveData();
+            renderTeacherFilters();
+            renderTimetable();
+            renderStudentsTable();
+        }
+    }
 
-  function renderMathForElement(element) {
-    if (!element || !window.MathJax) return;
-    try {
-      if (window.MathJax.typesetClear) {
-        window.MathJax.typesetClear([element]);
-      }
-      if (window.MathJax.typesetPromise) {
-        window.MathJax.typesetPromise([element]).catch(function(err) {
-          console.warn('Błąd renderowania MathJax:', err);
+    function renderTeacherFilters() {
+        const container = document.getElementById('teacherFilterContainer');
+        container.innerHTML = '';
+
+        teachers.forEach(t => {
+            const chip = document.createElement('label');
+            chip.className = 'teacher-chip';
+            chip.style.borderColor = t.border;
+            chip.style.backgroundColor = t.visible ? t.bg : '#ffffff';
+            chip.style.color = t.visible ? t.color : '#475569';
+
+            chip.innerHTML = `
+                <input type="checkbox" ${t.visible ? 'checked' : ''} onchange="toggleTeacherVisibility('${t.id}')">
+                <span>${t.name}</span>
+            `;
+            container.appendChild(chip);
         });
-      }
-    } catch(e) {
-      console.warn('Wyjątek MathJax:', e);
-    }
-  }
 
-  window.addEventListener('DOMContentLoaded', function() {
-    const gateway = document.getElementById('teacher-login-gateway');
-    if (gateway && gateway.parentElement !== document.body) {
-      document.body.appendChild(gateway);
+        const select = document.getElementById('activityTeacherId');
+        select.innerHTML = teachers.filter(t => t.id !== 't_informatyka').map(t => `<option value="${t.id}">${t.name} (${t.subject})</option>`).join('');
     }
 
-    sprawdzDostepNauczyciela();
-
-    setInterval(function() {
-      if (czyNauczycielZalogowany()) {
-        pobierzDaneZBazy(true);
-      }
-    }, 3000);
-  });
-
-  function czyNauczycielZalogowany() {
-    return sessionStorage.getItem('teacher_auth_token') === 'AUTHORIZED_TEACHER_OK';
-  }
-
-  function sprawdzDostepNauczyciela() {
-    const gateway = document.getElementById('teacher-login-gateway');
-    if (czyNauczycielZalogowany()) {
-      if (gateway) gateway.classList.add('hidden-gateway');
-      pobierzDaneZBazy(false);
-    } else {
-      if (gateway) gateway.classList.remove('hidden-gateway');
-    }
-  }
-
-  async function weryfikujHasloNauczyciela(e) {
-    e.preventDefault();
-    const pass = document.getElementById('teacher-pass-input').value.trim();
-    const errorMsg = document.getElementById('gateway-error-msg');
-    const client = getSupabaseClient();
-
-    if (!client) {
-      alert("Błąd połączenia z bazą!");
-      return;
-    }
-
-    errorMsg.style.display = 'none';
-
-    try {
-      const { data, error } = await client.rpc('check_teacher_password', { input_pass: pass });
-
-      if (error) {
-        if (pass === "@123Eudoksos") {
-          sessionStorage.setItem('teacher_auth_token', 'AUTHORIZED_TEACHER_OK');
-          document.getElementById('teacher-login-gateway').classList.add('hidden-gateway');
-          pobierzDaneZBazy(false);
-          return;
+    function toggleTeacherVisibility(teacherId) {
+        const t = teachers.find(item => item.id === teacherId);
+        if (t) {
+            t.visible = !t.visible;
+            saveData();
+            renderTeacherFilters();
+            renderTimetable();
         }
-        throw error;
-      }
-
-      if (data === true) {
-        sessionStorage.setItem('teacher_auth_token', 'AUTHORIZED_TEACHER_OK');
-        document.getElementById('teacher-login-gateway').classList.add('hidden-gateway');
-        pobierzDaneZBazy(false);
-      } else {
-        errorMsg.style.display = 'block';
-        errorMsg.innerText = '❌ Nieprawidłowe hasło dostępowe!';
-        document.getElementById('teacher-pass-input').value = '';
-      }
-    } catch(err) {
-      if (pass === "@123Eudoksos") {
-        sessionStorage.setItem('teacher_auth_token', 'AUTHORIZED_TEACHER_OK');
-        document.getElementById('teacher-login-gateway').classList.add('hidden-gateway');
-        pobierzDaneZBazy(false);
-      } else {
-        errorMsg.style.display = 'block';
-        errorMsg.innerText = '❌ Błąd weryfikacji lub nieprawidłowe hasło!';
-      }
-    }
-  }
-
-  function wylogujNauczyciela() {
-    sessionStorage.removeItem('teacher_auth_token');
-    pobraneDane = [];
-    document.getElementById('table-body').innerHTML = `<tr><td colspan="8" style="text-align:center; color:#64748b; padding:40px;">Panel zablokowany. Zaloguj się.</td></tr>`;
-    const gateway = document.getElementById('teacher-login-gateway');
-    if (gateway) gateway.classList.remove('hidden-gateway');
-  }
-
-  async function pobierzDaneZBazy(isSilent) {
-    if (!czyNauczycielZalogowany()) return;
-
-    // BLOKADA PRZEŁADOWANIA JEŚLI NAUCZYCIEL AKTUALNIE PISZE ODPOWIEDŹ
-    const activeEl = document.activeElement;
-    const isTyping = activeEl && (activeEl.tagName === 'TEXTAREA' || (activeEl.tagName === 'INPUT' && activeEl.type === 'text'));
-    if (isSilent && isTyping) {
-      return; 
     }
 
-    const tbody = document.getElementById('table-body');
-    if (!tbody) return;
-
-    if (!isSilent && pobraneDane.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#64748b; padding:30px;">Pobieranie wyników z bazy...</td></tr>`;
-    }
-
-    const client = getSupabaseClient();
-    if (!client) return;
-
-    const { data, error } = await client
-      .from('student_results')
-      .select('*')
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      console.error("Błąd Supabase:", error);
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#be123c; padding:30px; font-weight:bold;">🚨 BŁĄD BAZY SUPABASE: ${error.message}</td></tr>`;
-      return;
-    }
-
-    const nowaTrescData = JSON.stringify(data || []);
-    const staraTrescData = JSON.stringify(pobraneDane);
-
-    pobraneDane = data || [];
-    wykryjWszystkieTematyZBazy(pobraneDane);
-
-    if (!isSilent || nowaTrescData !== staraTrescData) {
-      filtrujIWyswietl();
-    }
-
-    const timeEl = document.getElementById('last-sync-time');
-    if (timeEl) {
-      timeEl.innerText = "(" + new Date().toLocaleTimeString() + ")";
-    }
-  }
-
-  function filtrujIWyswietl() {
-    const selectedClass = document.getElementById('filter-class').value;
-    const selectedTopic = document.getElementById('filter-topic').value;
-    const tbody = document.getElementById('table-body');
-    if (!tbody) return;
-
-    let przefiltrowani = pobraneDane;
-
-    if (selectedClass !== 'ALL') {
-      przefiltrowani = przefiltrowani.filter(u => {
-        const c = (u.class_name || '').toLowerCase().replace(/\s+/g, '');
-        const selC = selectedClass.toLowerCase().replace(/\s+/g, '');
-        return c.includes(selC) || selC.includes(c);
-      });
-    }
-
-    if (selectedTopic !== 'ALL') {
-      przefiltrowani = przefiltrowani.filter(u => {
-        if (!u.topic_id) return false;
-        const tid = u.topic_id.toLowerCase().replace(/\./g, '').trim();
-        const sel = selectedTopic.toLowerCase().replace(/\./g, '').trim();
-        return tid === sel || tid.includes(sel) || sel.includes(tid);
-      });
-    }
-
-    obliczStatystyki(przefiltrowani);
-
-    if (przefiltrowani.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#64748b; padding:40px; font-style:italic;">Baza Supabase jest gotowa. Oczekiwanie na rozwiązania uczniów...</td></tr>`;
-      return;
-    }
-
-    let html = '';
-    przefiltrowani.forEach((u, idx) => {
-      const klasa = u.class_name || 'Klasa 8';
-      const proc = u.total_count > 0 ? Math.round((u.correct_count / u.total_count) * 100) : 0;
-      const data = new Date(u.updated_at).toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-      
-      let badgeStyle = 'badge-low';
-      if (proc >= 75) badgeStyle = 'badge-high';
-      else if (proc >= 50) badgeStyle = 'badge-mid';
-
-      const maNotatki = u.private_notes && Object.keys(u.private_notes).length > 0;
-      const maOdpowiedzi = u.teacher_notes && Object.keys(u.teacher_notes).length > 0;
-
-      let badgeNotatki = '';
-      if (maNotatki && !maOdpowiedzi) {
-        badgeNotatki = '<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">💬 Nowa notatka</span>';
-      } else if (maOdpowiedzi) {
-        badgeNotatki = '<span style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; margin-left:6px; display:inline-block;">👨‍🏫 Odpowiedziano</span>';
-      }
-
-      const rowKey = u.id || `row_${idx}`;
-      const isExpanded = otwarteWierszeSet.has(rowKey);
-      const displayStyle = isExpanded ? 'table-row' : 'none';
-
-      html += `
-        <tr class="student-row" onclick="toggleDetails('${rowKey}', ${idx})" title="Kliknij, aby rozwinąć lub zwinąć zestaw wzorów i notatek ucznia">
-          <td onclick="event.stopPropagation();" style="text-align: center;">
-            <input type="checkbox" class="student-checkbox" value="${u.id}" onchange="aktualizujLicznikZaznaczonych()">
-          </td>
-          <td>
-            <b style="color:#0f172a;">${escapeHtml(u.student_name)}</b>
-            ${badgeNotatki}
-          </td>
-          <td><b style="color:#007a3d;">${escapeHtml(klasa)}</b></td>
-          <td style="color:#64748b; font-family:monospace; font-weight:600;">${escapeHtml(u.pin_code)}</td>
-          <td><b>${u.correct_count}</b> / ${u.total_count}</td>
-          <td><span class="badge ${badgeStyle}">${proc}%</span></td>
-          <td>
-            <b style="color:#007a3d; font-size:0.95em;">${formatTitle(u.topic_id)}</b><br>
-            <span style="color:#64748b; font-size:0.8em;">Ostatnia odpowiedź: <b>${data}</b></span>
-          </td>
-          <td onclick="event.stopPropagation();">
-            <button class="details-btn" onclick="toggleDetails('${rowKey}', ${idx})">🔍 Rozwiń wpisy</button>
-            <button class="delete-btn" onclick="usunPojedynczyWpis('${u.id}', '${escapeHtml(u.student_name)}')">🗑️ Usuń</button>
-          </td>
-        </tr>
-
-        <tr id="details-row-${idx}" class="details-fullrow" style="display: ${displayStyle};">
-          <td colspan="8" style="padding:0;">
-            <div class="details-container-inner">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid #cbd5e1; padding-bottom:10px;">
-                <span style="font-weight:bold; color:#0f172a; font-size:1.02em;">
-                  📊 Wpisane wzory, notatki i odpowiedzi dla ucznia: <b style="color:#007a3d;">${escapeHtml(u.student_name)}</b> (${escapeHtml(klasa)})
-                </span>
-                <button onclick="toggleDetails('${rowKey}', ${idx})" style="padding:5px 12px; font-size:0.82em; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1;">✖ Zamknij podgląd</button>
-              </div>
-
-              <!-- SEKCJA PRYWATNYCH NOTATEK UCZNIA ORAZ FORMULARZY ODPOWIEDZI NAUCZYCIELA -->
-              ${formatujPrywatneNotatkiIOdpowiedzi(u)}
-
-              <!-- SEKCJA ODPOWIEDZI MATEMATYCZNYCH -->
-              <div>${formatujWpisyUczniaMathJax(u.task_answers)}</div>
-            </div>
-          </td>
-        </tr>`;
-    });
-
-    tbody.innerHTML = html;
-
-    setTimeout(function() {
-      przefiltrowani.forEach((u, idx) => {
-        const rowKey = u.id || `row_${idx}`;
-        if (otwarteWierszeSet.has(rowKey)) {
-          const row = document.getElementById(`details-row-${idx}`);
-          if (row) renderMathForElement(row);
-        }
-      });
-    }, 60);
-  }
-
-  // ULEPSZONE RENDEROWANIE NOTATEK UCZNIA Z MOŻLIWOŚCIĄ BEZPOŚREDNIEJ ODPOWIEDZI
-  function formatujPrywatneNotatkiIOdpowiedzi(u) {
-    const notesObj = u.private_notes || {};
-    const teacherNotesObj = u.teacher_notes || {};
-    const studentId = u.id;
-
-    const allTaskIds = Array.from(new Set([...Object.keys(notesObj), ...Object.keys(teacherNotesObj)]));
-
-    if (allTaskIds.length === 0) return '';
-
-    let itemsHTML = '';
-
-    allTaskIds.forEach(taskId => {
-      const studentNote = String(notesObj[taskId] || '').trim();
-      const teacherNoteEntry = teacherNotesObj[taskId];
-      const teacherText = typeof teacherNoteEntry === 'object' && teacherNoteEntry !== null ? (teacherNoteEntry.text || '') : (teacherNoteEntry || '');
-      const teacherDate = typeof teacherNoteEntry === 'object' && teacherNoteEntry !== null ? (teacherNoteEntry.date || '') : '';
-
-      const safeTaskId = escapeHtml(taskId);
-      const inputId = `reply-${studentId}-${taskId.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-      itemsHTML += `
-        <div style="background:#ffffff; border:1.5px solid #cbd5e1; border-radius:12px; padding:14px 16px; margin-bottom:12px; box-shadow:0 2px 5px rgba(0,0,0,0.02);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
-            <strong style="color:#0369a1; font-size:0.9em; display:flex; align-items:center; gap:6px;">
-              📌 <span>${safeTaskId}</span>
-            </strong>
-            ${teacherDate ? `<span style="font-size:0.75em; color:#059669; font-weight:600;">Ostatnia odpowiedź: ${escapeHtml(teacherDate)}</span>` : ''}
-          </div>
-
-          ${studentNote ? `
-            <div style="background:#f0f9ff; border-left:3px solid #0284c7; padding:8px 12px; border-radius:0 8px 8px 0; margin-bottom:12px;">
-              <span style="font-size:0.75em; color:#0369a1; font-weight:bold; display:block; margin-bottom:2px;">Pytanie / Uwaga Ucznia:</span>
-              <div style="color:#1e293b; font-size:0.92em; white-space:pre-wrap; word-break:break-word;">${escapeHtml(studentNote)}</div>
-            </div>
-          ` : '<div style="color:#64748b; font-size:0.82em; margin-bottom:8px; font-style:italic;">(Uczeń nie wpisał uwagi, ale możesz zostawić dla niego wskazówkę)</div>'}
-
-          <!-- FORMULARZ ODPOWIEDZI NAUCZYCIELA -->
-          <div style="background:#f0fdf4; border:1.5px solid #a7f3d0; border-radius:10px; padding:12px;" onclick="event.stopPropagation();">
-            <label for="${inputId}" style="display:block; font-size:0.82em; font-weight:bold; color:#15803d; margin-bottom:6px;">
-              👨‍🏫 Twoja prywatna odpowiedź dla ucznia:
-            </label>
-            <textarea id="${inputId}" rows="2" placeholder="Wpisz tutaj odpowiedź lub wskazówkę dla ucznia..." style="width:100%; box-sizing:border-box; border:1.5px solid #86efac; border-radius:8px; padding:8px 10px; font-size:0.9em; font-family:inherit; outline:none; resize:vertical; background:#ffffff;">${escapeHtml(teacherText)}</textarea>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-              <span id="status-${inputId}" style="font-size:0.8em; font-weight:bold; color:#16a34a; display:none;"></span>
-              <div style="display:flex; gap:8px; margin-left:auto;">
-                ${teacherText ? `<button type="button" onclick="usunOdpowiedzNauczyciela('${studentId}', '${safeTaskId}', '${inputId}')" style="background:#fee2e2; color:#be123c; border:1px solid #fca5a5; padding:6px 12px; border-radius:6px; font-size:0.8em; font-weight:bold; cursor:pointer;">🗑️ Usuń</button>` : ''}
-                <button type="button" onclick="zapiszOdpowiedzNauczyciela('${studentId}', '${safeTaskId}', '${inputId}')" style="background:linear-gradient(135deg, #007a3d 0%, #005c2e 100%); color:#ffffff; border:none; padding:7px 16px; border-radius:6px; font-size:0.82em; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,122,61,0.2);">💾 Zapisz / Wyślij odpowiedź</button>
-              </div>
-            </div>
-          </div>
-        </div>`;
-    });
-
-    return `
-      <div style="margin-bottom:20px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:14px; padding:16px 18px; text-align:left;">
-        <div style="font-weight:bold; color:#0f172a; font-size:1em; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-          <span>🔒</span> <span>Prywatne uwagi ucznia i Twoje odpowiedzi:</span>
-        </div>
-        <div>${itemsHTML}</div>
-      </div>`;
-  }
-
-  // FUNKCJA ZAPISUJĄCA ODPOWIEDŹ NAUCZYCIELA W BAZIE SUPABASE
-  async function zapiszOdpowiedzNauczyciela(studentId, taskId, inputId) {
-    const textarea = document.getElementById(inputId);
-    const statusEl = document.getElementById(`status-${inputId}`);
-    if (!textarea) return;
-
-    const textVal = textarea.value.trim();
-    if (statusEl) {
-      statusEl.style.display = 'inline-block';
-      statusEl.style.color = '#0284c7';
-      statusEl.innerText = '⏳ Zapisywanie...';
-    }
-
-    const client = getSupabaseClient();
-    if (!client) {
-      alert('Błąd połączenia z Supabase!');
-      return;
-    }
-
-    try {
-      const { data, error: fetchErr } = await client
-        .from('student_results')
-        .select('teacher_notes')
-        .eq('id', studentId)
-        .single();
-
-      if (fetchErr) throw fetchErr;
-
-      const currentTeacherNotes = data?.teacher_notes || {};
-
-      if (textVal === '') {
-        delete currentTeacherNotes[taskId];
-      } else {
-        currentTeacherNotes[taskId] = {
-          text: textVal,
-          date: new Date().toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-        };
-      }
-
-      const { error: upErr } = await client
-        .from('student_results')
-        .update({ teacher_notes: currentTeacherNotes })
-        .eq('id', studentId);
-
-      if (upErr) throw upErr;
-
-      if (statusEl) {
-        statusEl.style.color = '#15803d';
-        statusEl.innerText = '✅ Odpowiedź zapisana!';
-        setTimeout(() => {
-          if (statusEl) statusEl.style.display = 'none';
-        }, 3500);
-      }
-
-      const studentIdx = pobraneDane.findIndex(s => s.id === studentId);
-      if (studentIdx !== -1) {
-        pobraneDane[studentIdx].teacher_notes = currentTeacherNotes;
-      }
-    } catch(err) {
-      console.error('Błąd zapisu odpowiedzi:', err);
-      if (statusEl) {
-        statusEl.style.color = '#be123c';
-        statusEl.innerText = '❌ Błąd zapisu: ' + err.message;
-      }
-    }
-  }
-
-  // FUNKCJA KASOWANIA ODPOWIEDZI NAUCZYCIELA
-  async function usunOdpowiedzNauczyciela(studentId, taskId, inputId) {
-    if (!confirm('Czy na pewno usunąć swoją odpowiedź do tego zadania?')) return;
-    const textarea = document.getElementById(inputId);
-    if (textarea) textarea.value = '';
-    await zapiszOdpowiedzNauczyciela(studentId, taskId, inputId);
-    pobierzDaneZBazy(false);
-  }
-
-  function naprawKodMatematyczny(val) {
-    if (!val) return '';
-    let str = String(val).trim();
-
-    str = str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-
-    str = str.replace(/\^{\\circ}/g, '°')
-             .replace(/\\circ/g, '°')
-             .replace(/\^\{\circ\}/g, '°')
-             .replace(/\^\\circ/g, '°');
-
-    str = str.replace(/\\?FRAC/gi, '\\frac');
-
-    str = str.replace(/\\frac\s*(\d+)\s*(\d+)/g, '\\frac{$1}{$2}');
-    str = str.replace(/\\frac\s*\{([^}]+)\}\s*(\d+)/g, '\\frac{$1}{$2}');
-    str = str.replace(/\\frac\s*(\d+)\s*\{([^}]+)\}/g, '\\frac{$1}{$2}');
-
-    str = str.replace(/(\d+)\s+(\d+)\/(\d+)/g, '$1 \\frac{$2}{$3}');
-    str = str.replace(/^(\d+)\/(\d+)$/g, '\\frac{$1}{$2}');
-    str = str.replace(/(\d)\s*\\frac/g, '$1 \\frac');
-
-    return str;
-  }
-
-  function formatujWpisyUczniaMathJax(answersObj) {
-    if (!answersObj || Object.keys(answersObj).length === 0) {
-      return '<span style="color:#64748b; font-style:italic;">Brak zapisanych wpisów. Uczeń dopiero się zalogował i jeszcze nie wpisał odpowiedzi.</span>';
-    }
-
-    let html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px; width:100%; font-family:Segoe UI, sans-serif;">';
-    
-    let index = 1;
-    for (let key in answersObj) {
-      let entry = answersObj[key];
-      let val = "";
-      let status = "unknown";
-      let taskLabel = "";
-
-      if (typeof entry === 'object' && entry !== null) {
-        val = entry.val || "";
-        status = entry.status || "unknown";
-        taskLabel = entry.task_label || "";
-      } else {
-        val = String(entry || "");
-        status = (val.trim() === "") ? "empty" : "unknown";
-      }
-
-      let title = taskLabel ? escapeHtml(taskLabel) : `Pole #${index}`;
-      let cleanVal = naprawKodMatematyczny(val);
-
-      let displayVal = "";
-      let statusBadge = "";
-
-      if (status === "empty" || !val || String(val).trim() === "") {
-        displayVal = '<span style="color:#94a3b8; font-style:italic;">Brak wpisu</span>';
-        statusBadge = '<span style="color:#d97706; background:#fffbe3; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">⚠️ Brak odpowiedzi</span>';
-      } else {
-        let isMath = cleanVal.includes('\\') || cleanVal.includes('^') || cleanVal.includes('_') || cleanVal.includes('/') || cleanVal.includes('{') || cleanVal.includes('}');
-        let formattedVal = isMath ? `\\(${cleanVal}\\)` : escapeHtml(cleanVal);
-
-        if (status === "correct") {
-          displayVal = `<span style="color:#15803d; font-weight:bold; font-size:1.15em;">${formattedVal}</span>`;
-          statusBadge = '<span style="color:#15803d; background:#dcfce7; border:1px solid #86efac; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">✅ Dobrze</span>';
-        } else if (status === "incorrect") {
-          displayVal = `<span style="color:#be123c; font-weight:bold; font-size:1.15em;">${formattedVal}</span>`;
-          statusBadge = '<span style="color:#be123c; background:#ffe4e6; border:1px solid #fca5a5; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">❌ Źle</span>';
+    function switchView(view) {
+        if (view === 'plan') {
+            document.getElementById('view-plan').style.display = 'block';
+            document.getElementById('view-students').style.display = 'none';
+            renderTimetable();
         } else {
-          displayVal = `<span style="color:#0284c7; font-weight:bold; font-size:1.15em;">${formattedVal}</span>`;
-          statusBadge = '<span style="color:#0284c7; background:#e0f2fe; border:1px solid #bae6fd; padding:3px 10px; border-radius:12px; font-size:0.78em; font-weight:bold;">ℹ️ Wpis</span>';
+            document.getElementById('view-plan').style.display = 'none';
+            document.getElementById('view-students').style.display = 'block';
+            renderStudentsTable();
         }
-      }
-
-      html += `
-        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:0.8em; color:#0f172a; font-weight:bold;">${title}</span>
-            ${statusBadge}
-          </div>
-          <div style="margin-top:2px;">${displayVal}</div>
-        </div>`;
-      index++;
     }
 
-    html += '</div>';
-    return html;
-  }
-
-  function toggleDetails(rowKey, idx) {
-    const row = document.getElementById(`details-row-${idx}`);
-    if (row) {
-      const isHidden = row.style.display === 'none' || !row.style.display;
-      if (isHidden) {
-        row.style.display = 'table-row';
-        otwarteWierszeSet.add(rowKey);
-        setTimeout(function() {
-          renderMathForElement(row);
-        }, 50);
-      } else {
-        row.style.display = 'none';
-        otwarteWierszeSet.delete(rowKey);
-      }
-    }
-  }
-
-  function zaznaczWszystkie(source) {
-    const checkboxes = document.querySelectorAll('.student-checkbox');
-    checkboxes.forEach(cb => cb.checked = source.checked);
-    aktualizujLicznikZaznaczonych();
-  }
-
-  function aktualizujLicznikZaznaczonych() {
-    const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
-    const btn = document.getElementById('btn-delete-selected');
-    if (btn) {
-      if (checkedBoxes.length > 0) {
-        btn.style.display = 'inline-block';
-        btn.innerText = `🗑️ Usuń zaznaczone (${checkedBoxes.length})`;
-      } else {
-        btn.style.display = 'none';
-      }
-    }
-  }
-
-  async function usunZaznaczonychUczniow() {
-    const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
-    if (checkedBoxes.length === 0) return;
-    const idsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
-
-    if (!confirm(`Czy usunąć ${idsToDelete.length} zaznaczonych wyników uczniów?`)) return;
-
-    const client = getSupabaseClient();
-    if (!client) return;
-
-    await client.from('student_results').delete().in('id', idsToDelete);
-    pobierzDaneZBazy(false);
-  }
-
-  async function usunPojedynczyWpis(id, studentName) {
-    if (!confirm(`Czy usunąć wyniki ucznia: ${studentName}?`)) return;
-    const client = getSupabaseClient();
-    if (!client) return;
-
-    await client.from('student_results').delete().eq('id', id);
-    pobierzDaneZBazy(false);
-  }
-
-  function obliczStatystyki(lista) {
-    document.getElementById('stat-students').innerText = lista.length;
-    if (lista.length === 0) {
-      document.getElementById('stat-avg').innerText = '0%';
-      document.getElementById('stat-max').innerText = '0%';
-      document.getElementById('stat-min').innerText = '0%';
-      return;
+    // SPRAWDZANIE KOLIZJI UCZNIA: Tylko inne zespoły blokują
+    function getStudentConflict(studentId, day, period, currentActivityId) {
+        return activities.find(a => 
+            a.type === 'project' &&
+            a.day === day && 
+            parseInt(a.period) === parseInt(period) && 
+            a.id !== currentActivityId && 
+            a.studentIds &&
+            a.studentIds.includes(studentId)
+        );
     }
 
-    const procenty = lista.map(u => u.total_count > 0 ? Math.round((u.correct_count / u.total_count) * 100) : 0);
-    const avg = Math.round(procenty.reduce((a, b) => a + b, 0) / procenty.length);
-    document.getElementById('stat-avg').innerText = avg + '%';
-    document.getElementById('stat-max').innerText = Math.max(...procenty) + '%';
-    document.getElementById('stat-min').innerText = Math.min(...procenty) + '%';
-  }
+    function getStudentITInfo(studentClass, day, period) {
+        return activities.find(a =>
+            a.type === 'it' &&
+            a.day === day &&
+            parseInt(a.period) === parseInt(period) &&
+            a.targetClass === studentClass
+        );
+    }
 
-  function escapeHtml(text) {
-    if (!text) return '';
-    return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-  }
+    function getTeacherConflict(teacherId, day, period, currentActivityId) {
+        return activities.find(a =>
+            a.day === day &&
+            parseInt(a.period) === parseInt(period) &&
+            a.teacherId === teacherId &&
+            a.id !== currentActivityId
+        );
+    }
 
-  function wykryjWszystkieTematyZBazy(dane) {
-    if (!dane) return;
-    const select = document.getElementById('filter-topic');
-    if (!select) return;
+    function renderTimetable() {
+        const grid = document.getElementById('timetableGrid');
+        grid.innerHTML = '';
 
-    const znaneTematy = Array.from(select.options).map(o => o.value);
-    const unikalneZBazy = [...new Set(dane.map(d => d.topic_id))];
-    
-    unikalneZBazy.forEach(topic => {
-      if (topic && !znaneTematy.includes(topic)) {
-        const opt = document.createElement('option');
-        opt.value = topic;
-        opt.innerText = "📌 Lekcja z bazy: " + formatTitle(topic);
-        select.appendChild(opt);
-      }
-    });
-  }
+        const allPeriods = [0, 1, 2, 3, 4, 5, 6, 7];
+        const visibleTeacherIds = teachers.filter(t => t.visible).map(t => t.id);
+
+        DAYS.forEach(day => {
+            const col = document.createElement('div');
+            col.className = 'day-column';
+            col.innerHTML = `<div class="day-header">${day}</div>`;
+
+            allPeriods.forEach(period => {
+                const isActiveSlot = (period === 6 || period === 7);
+                const block = document.createElement('div');
+                block.className = `period-block ${isActiveSlot ? 'period-block-active' : ''}`;
+                
+                const dayActivities = activities.filter(a => {
+                    if (a.day !== day || parseInt(a.period) !== period) return false;
+                    if (a.type === 'project') return true;
+                    if (a.type === 'it') return visibleTeacherIds.includes('t_informatyka');
+                    return visibleTeacherIds.includes(a.teacherId);
+                });
+
+                const projectCount = dayActivities.filter(a => a.type === 'project').length;
+                
+                let cardsHtml = dayActivities.map(act => {
+                    const teacher = teachers.find(t => t.id === act.teacherId) || defaultTeachers[0];
+                    let isProject = act.type === 'project';
+                    let isIT = act.type === 'it';
+                    
+                    let bg = teacher.bg;
+                    let border = teacher.border;
+                    if (act.type === 'swietlica') {
+                        bg = teacher.swietlicaBg;
+                        border = teacher.swietlicaBorder;
+                    }
+
+                    let studentNames = '';
+                    if (act.studentIds && act.studentIds.length > 0) {
+                        studentNames = act.studentIds
+                            .map(id => students.find(s => s.id === id))
+                            .filter(Boolean)
+                            .map(s => `<span class="student-pill">${s.name}</span>`)
+                            .join('');
+                    }
+
+                    let cardClass = 'card-item';
+                    if (isProject) cardClass += ' card-project';
+                    if (isIT) cardClass += ' card-it';
+
+                    return `
+                        <div class="${cardClass}" style="${(!isProject && !isIT) ? `background-color: ${bg}; border-color: ${border}; border-left: 4px solid ${teacher.color};` : ''}">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div class="teacher-tag" style="color:${isProject ? '#7e22ce' : (isIT ? '#0369a1' : teacher.color)};">
+                                    ${isProject ? '⭐ ZESPÓŁ PROJEKTOWY' : (isIT ? '💻 INFORMATYKA' : teacher.name)}
+                                </div>
+                                ${isProject ? `
+                                <div style="display:flex; gap:3px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="editActivity('${act.id}')" title="Edytuj zespół">✏️</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteActivity('${act.id}')" title="Usuń zespół">🗑️</button>
+                                </div>` : ''}
+                            </div>
+                            <div class="${isProject ? 'project-title' : (isIT ? 'it-title' : 'item-title')}">${act.name}</div>
+                            ${isProject && teacher ? `<div style="font-size:0.72rem; color:#6b21a8; font-weight:600; margin-top:2px;">👨‍🏫 Prowadzi: <strong>${teacher.name}</strong> (${act.studentIds ? act.studentIds.length : 0} uczniów)</div>` : ''}
+                            ${studentNames ? `<div class="students-pill-list">${studentNames}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+                const addBtn = isActiveSlot 
+                    ? `<button class="btn btn-sm btn-secondary" onclick="openActivityModal('${day}', ${period})" title="Dodaj zespół na lekcji ${period}">+ Dodaj Zespół</button>` 
+                    : '';
+
+                const parallelInfo = (isActiveSlot && projectCount > 1) 
+                    ? `<span class="parallel-counter" title="${projectCount} zespoły zaplanowane w tym samym czasie">${projectCount} równolegle</span>` 
+                    : '';
+
+                block.innerHTML = `
+                    <div class="period-header">
+                        <div>
+                            <span class="period-title">Lekcja ${period}</span>
+                            <span class="period-time">${PERIOD_HOURS[period]}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            ${parallelInfo}
+                            ${addBtn}
+                        </div>
+                    </div>
+                    ${cardsHtml || (isActiveSlot ? '<div style="font-size:0.72rem; color:#94a3b8; text-align:center; padding:6px; font-weight:600;">(wolny termin na zespół)</div>' : '<div style="font-size:0.7rem; color:#cbd5e1; text-align:center;">—</div>')}
+                `;
+                col.appendChild(block);
+            });
+
+            grid.appendChild(col);
+        });
+    }
+
+    // OTWARCIE MODALU
+    function openActivityModal(prefillDay = 'Poniedziałek', prefillPeriod = 6) {
+        let periodVal = (prefillPeriod === 6 || prefillPeriod === 7) ? prefillPeriod : 6;
+        document.getElementById('activityId').value = '';
+        document.getElementById('activityName').value = '';
+        document.getElementById('activityDay').value = prefillDay;
+        document.getElementById('activityPeriod').value = periodVal;
+        document.getElementById('modalTitle').innerText = `Nowy Zespół (${prefillDay}, Lekcja ${periodVal} [${PERIOD_HOURS[periodVal]}])`;
+        
+        activeModalSelectedIds = new Set();
+        currentModalClassTab = '4A';
+
+        handleTimeOrTeacherChange();
+        document.getElementById('activityModal').classList.add('open');
+    }
+
+    function editActivity(id) {
+        const act = activities.find(a => a.id === id);
+        if (!act) return;
+
+        document.getElementById('activityId').value = act.id;
+        document.getElementById('activityName').value = act.name;
+        document.getElementById('activityDay').value = act.day;
+        document.getElementById('activityPeriod').value = act.period;
+        document.getElementById('activityTeacherId').value = act.teacherId || teachers[0].id;
+        document.getElementById('modalTitle').innerText = `Edycja Zespołu (${act.day}, Lekcja ${act.period})`;
+
+        activeModalSelectedIds = new Set(act.studentIds || []);
+        
+        // Wykryj klasę pierwszego zaznaczonego ucznia lub domyślnie 4A
+        if (act.studentIds && act.studentIds.length > 0) {
+            const firstSt = students.find(s => s.id === act.studentIds[0]);
+            currentModalClassTab = firstSt ? firstSt.class : '4A';
+        } else {
+            currentModalClassTab = '4A';
+        }
+
+        handleTimeOrTeacherChange();
+        document.getElementById('activityModal').classList.add('open');
+    }
+
+    function closeActivityModal() {
+        document.getElementById('activityModal').classList.remove('open');
+    }
+
+    function handleTimeOrTeacherChange() {
+        const day = document.getElementById('activityDay').value;
+        const period = document.getElementById('activityPeriod').value;
+        const teacherId = document.getElementById('activityTeacherId').value;
+        const currentId = document.getElementById('activityId').value;
+
+        // Ostrzeżenie o zajętości nauczyciela
+        const teacherConflict = getTeacherConflict(teacherId, day, period, currentId);
+        const warningBox = document.getElementById('teacherWarning');
+        if (teacherConflict) {
+            warningBox.innerText = `⚠️ Ten nauczyciel ma już w tym czasie zajęcia: "${teacherConflict.name}"!`;
+        } else {
+            warningBox.innerText = '';
+        }
+
+        renderClassTabs();
+        renderStudentListForActiveTab();
+    }
+
+    // RENDEROWANIE ZAKŁADEK KLAS W MODALU
+    function renderClassTabs() {
+        const container = document.getElementById('classTabsContainer');
+        container.innerHTML = '';
+
+        CLASSES.forEach(cls => {
+            const countInClass = students.filter(s => s.class === cls && activeModalSelectedIds.has(s.id)).length;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `class-tab-btn ${currentModalClassTab === cls ? 'active' : ''}`;
+            btn.innerHTML = `
+                <span>Klasa ${cls}</span>
+                <span class="tab-count-badge">${countInClass}</span>
+            `;
+            btn.onclick = () => {
+                currentModalClassTab = cls;
+                document.getElementById('modalSearchStudent').value = '';
+                renderClassTabs();
+                renderStudentListForActiveTab();
+            };
+            container.appendChild(btn);
+        });
+
+        // Zakładka podsumowania wszystkich wybranych
+        const totalSelected = activeModalSelectedIds.size;
+        const selBtn = document.createElement('button');
+        selBtn.type = 'button';
+        selBtn.className = `class-tab-btn ${currentModalClassTab === 'SELECTED' ? 'active' : ''}`;
+        selBtn.style.borderLeft = '2px solid #cbd5e1';
+        selBtn.innerHTML = `
+            <span>⭐ Wybrani</span>
+            <span class="tab-count-badge" style="background:${currentModalClassTab === 'SELECTED' ? '#ffffff' : '#7c3aed'}; color:${currentModalClassTab === 'SELECTED' ? '#7c3aed' : '#ffffff'};">${totalSelected}</span>
+        `;
+        selBtn.onclick = () => {
+            currentModalClassTab = 'SELECTED';
+            document.getElementById('modalSearchStudent').value = '';
+            renderClassTabs();
+            renderStudentListForActiveTab();
+        };
+        container.appendChild(selBtn);
+
+        updateSelectionSummary();
+    }
+
+    // RENDEROWANIE LISTY UCZNIÓW DLA AKTYWNEJ ZAKŁADKI
+    function renderStudentListForActiveTab() {
+        const day = document.getElementById('activityDay').value;
+        const period = document.getElementById('activityPeriod').value;
+        const currentId = document.getElementById('activityId').value;
+        const searchQuery = (document.getElementById('modalSearchStudent').value || '').toLowerCase();
+        const container = document.getElementById('studentsCheckboxList');
+        const titleEl = document.getElementById('activeClassActionTitle');
+
+        container.innerHTML = '';
+
+        let listToRender = [];
+        if (currentModalClassTab === 'SELECTED') {
+            titleEl.innerHTML = `⭐ Wszyscy wybrani uczniowie do tego zespołu (${activeModalSelectedIds.size})`;
+            listToRender = students.filter(s => activeModalSelectedIds.has(s.id));
+        } else {
+            titleEl.innerHTML = `Lista uczniów: <strong>Klasa ${currentModalClassTab}</strong>`;
+            listToRender = students.filter(s => s.class === currentModalClassTab);
+        }
+
+        if (searchQuery) {
+            listToRender = listToRender.filter(s => s.name.toLowerCase().includes(searchQuery));
+        }
+
+        if (listToRender.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:16px; color:#94a3b8; font-size:0.82rem; font-weight:600;">
+                ${currentModalClassTab === 'SELECTED' ? 'Nie wybrano jeszcze żadnego ucznia.' : 'Brak uczniów spełniających kryteria.'}
+            </div>`;
+            return;
+        }
+
+        listToRender.forEach(st => {
+            const conflict = getStudentConflict(st.id, day, period, currentId);
+            const hasIT = getStudentITInfo(st.class, day, period);
+            const isChecked = activeModalSelectedIds.has(st.id);
+
+            const item = document.createElement('label');
+            item.className = `student-checkbox-item ${conflict ? 'disabled' : ''}`;
+
+            const conflictTeacher = conflict ? (teachers.find(t => t.id === conflict.teacherId)?.name || 'Inny') : '';
+
+            let statusBadge = '<span class="available-badge">✓ Wolny</span>';
+            if (conflict) {
+                statusBadge = `<span class="conflict-badge" title="Zajęty w zespole: ${conflict.name}">🔒 Zajęty w: ${conflict.name} (${conflictTeacher})</span>`;
+            } else if (hasIT) {
+                statusBadge = `<span class="it-overlap-badge" title="Klasa ma w tym czasie informatykę">💻 Informatyka (${st.class})</span>`;
+            }
+
+            item.innerHTML = `
+                <div style="display:flex; align-items:center; gap:9px;">
+                    <input type="checkbox" style="width:16px; height:16px; cursor:pointer;" value="${st.id}" ${isChecked ? 'checked' : ''} ${conflict ? 'disabled' : ''} onchange="toggleStudentSelection(${st.id}, this.checked)">
+                    <span style="${conflict ? 'color:#991b1b; text-decoration:line-through; font-weight:bold;' : 'font-weight:700; color:#1e293b;'}">${st.name}</span>
+                    <span style="font-size:0.72rem; color:#64748b; background:#f1f5f9; padding:1px 5px; border-radius:4px; font-weight:700;">${st.class}</span>
+                </div>
+                <div>
+                    ${statusBadge}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function toggleStudentSelection(studentId, isChecked) {
+        if (isChecked) {
+            activeModalSelectedIds.add(studentId);
+        } else {
+            activeModalSelectedIds.delete(studentId);
+        }
+        renderClassTabs();
+    }
+
+    // SZYBKIE ZAZNACZANIE / ODZNACZANIE DLA AKTYWNEJ ZAKŁADKI
+    function toggleActiveTabClass(selectAll) {
+        const day = document.getElementById('activityDay').value;
+        const period = document.getElementById('activityPeriod').value;
+        const currentId = document.getElementById('activityId').value;
+
+        if (currentModalClassTab === 'SELECTED') {
+            if (!selectAll) {
+                activeModalSelectedIds.clear();
+            }
+        } else {
+            const classStudents = students.filter(s => s.class === currentModalClassTab);
+            classStudents.forEach(st => {
+                const conflict = getStudentConflict(st.id, day, period, currentId);
+                if (!conflict) {
+                    if (selectAll) {
+                        activeModalSelectedIds.add(st.id);
+                    } else {
+                        activeModalSelectedIds.delete(st.id);
+                    }
+                }
+            });
+        }
+
+        renderClassTabs();
+        renderStudentListForActiveTab();
+    }
+
+    function updateSelectionSummary() {
+        const total = activeModalSelectedIds.size;
+        document.getElementById('totalSelectedCountBadge').innerText = `${total} uczniów`;
+
+        const byClass = {};
+        CLASSES.forEach(cls => {
+            const count = students.filter(s => s.class === cls && activeModalSelectedIds.has(s.id)).length;
+            if (count > 0) byClass[cls] = count;
+        });
+
+        const summaryText = Object.entries(byClass).map(([cls, count]) => `${cls}: ${count}`).join(' • ');
+        document.getElementById('selectedByClassSummary').innerText = summaryText ? `(${summaryText})` : '(brak zaznaczonych)';
+    }
+
+    function saveActivity(e) {
+        e.preventDefault();
+        const id = document.getElementById('activityId').value || 'act_' + Date.now();
+        const name = document.getElementById('activityName').value.trim();
+        const day = document.getElementById('activityDay').value;
+        const period = parseInt(document.getElementById('activityPeriod').value);
+        const teacherId = document.getElementById('activityTeacherId').value;
+
+        const selectedStudentIds = Array.from(activeModalSelectedIds);
+
+        if (selectedStudentIds.length === 0) {
+            if (!confirm('Tworzysz zespół bez przypisanych uczniów. Czy na pewno kontynuować?')) {
+                return;
+            }
+        }
+
+        activities = activities.filter(a => a.id !== id);
+
+        activities.push({
+            id,
+            teacherId,
+            type: 'project',
+            name,
+            day,
+            period,
+            studentIds: selectedStudentIds
+        });
+
+        saveData();
+        closeActivityModal();
+        renderTimetable();
+    }
+
+    function deleteActivity(id) {
+        if (confirm('Czy na pewno chcesz usunąć ten zespół?')) {
+            activities = activities.filter(a => a.id !== id);
+            saveData();
+            renderTimetable();
+        }
+    }
+
+    /* BAZA UCZNIÓW */
+    function renderStudentsTable() {
+        const tbody = document.getElementById('studentsTableBody');
+        const filter = (document.getElementById('filterStudentInput').value || '').toLowerCase();
+        tbody.innerHTML = '';
+
+        let list = students.filter(s => s.name.toLowerCase().includes(filter) || s.class.toLowerCase().includes(filter));
+        list.sort((a,b) => a.class.localeCompare(b.class) || a.name.localeCompare(b.name));
+
+        list.forEach((s, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="color:#64748b; font-weight:600;">${index + 1}</td>
+                <td><strong>${s.name}</strong></td>
+                <td><span style="background:#e2e8f0; padding:2px 6px; border-radius:4px; font-weight:800; font-size:0.75rem;">${s.class}</span></td>
+                <td style="text-align: right;">
+                    <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">Usuń</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function addStudent() {
+        const nameInput = document.getElementById('newStudentName');
+        const classSelect = document.getElementById('newStudentClass');
+        const name = nameInput.value.trim();
+
+        if (!name) return alert('Wpisz nazwisko i imię ucznia!');
+
+        students.push({
+            id: Date.now(),
+            name: name,
+            class: classSelect.value
+        });
+
+        saveData();
+        nameInput.value = '';
+        renderStudentsTable();
+    }
+
+    function deleteStudent(id) {
+        if (confirm('Usunięcie ucznia wypisze go również ze wszystkich projektów. Kontynuować?')) {
+            students = students.filter(s => s.id !== id);
+            activities.forEach(a => {
+                if (a.studentIds) a.studentIds = a.studentIds.filter(sid => sid !== id);
+            });
+            saveData();
+            renderStudentsTable();
+        }
+    }
+
+    // Start
+    renderTeacherFilters();
+    renderTimetable();
 </script>
 
 </body>
